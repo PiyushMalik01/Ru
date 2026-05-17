@@ -1,78 +1,61 @@
 "use client";
 
 import { ScrollReveal } from "./scroll-reveal";
-import { WaveDivider } from "./wave-divider";
-
-const STATS = [
-  { value: "5 → 1", label: "apps replaced", color: "#7c3aed" },
-  { value: "< 3s", label: "to organize a thought", color: "#f97316" },
-  { value: "0", label: "forms to fill", color: "#14b8a6" },
-];
 
 export function Story() {
   return (
-    <>
-      <WaveDivider topColor="#0a0a0f" bottomColor="#faf7f2" />
+    <section className="relative overflow-hidden px-6 py-24 md:px-12 md:py-32" style={{ background: "#f0ebe3" }}>
+      {/* Hand-drawn squiggle accent */}
+      <svg className="pointer-events-none absolute right-[5%] top-12 opacity-[0.06]" width="200" height="60" viewBox="0 0 200 60" fill="none">
+        <path d="M5 30 C30 5, 60 55, 90 30 C120 5, 150 55, 195 30" stroke="#2d2a26" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+      </svg>
 
-      <section className="relative overflow-hidden bg-[#faf7f2] px-4 pb-28 pt-20">
-        {/* Decorative colored blobs */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(circle 300px at 90% 20%, rgba(139,92,246,0.08) 0%, transparent 60%),
-              radial-gradient(circle 250px at 10% 80%, rgba(251,146,60,0.06) 0%, transparent 60%),
-              radial-gradient(circle 200px at 50% 50%, rgba(244,114,182,0.04) 0%, transparent 60%)
-            `,
-          }}
-        />
+      <div className="mx-auto max-w-4xl">
+        <ScrollReveal>
+          <h2 style={{ fontFamily: "var(--font-serif)", color: "#2d2a26", fontSize: "clamp(32px, 5vw, 56px)", lineHeight: 1.15 }}>
+            You open one app to add a task.
+            <br className="hidden md:block" />
+            Another to log a habit. A third to
+            <br className="hidden md:block" />
+            set a reminder.{" "}
+            <span style={{ color: "#e8593c" }}>Sound familiar?</span>
+          </h2>
+        </ScrollReveal>
 
-        <div className="relative mx-auto max-w-4xl">
-          <ScrollReveal>
-            <h2 className="text-3xl font-bold leading-tight tracking-tight text-[#1a1a1a] md:text-5xl">
-              You weren&apos;t meant to be your own{" "}
-              <span className="bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-                personal assistant.
-              </span>
-            </h2>
-          </ScrollReveal>
+        <ScrollReveal delay={0.1}>
+          <p className="mt-8 max-w-2xl text-lg leading-relaxed" style={{ color: "#6b665e" }}>
+            By the time you&apos;re done organizing your life, you&apos;ve lost the energy to
+            actually live it. Ru replaces the whole stack with a single conversation.
+          </p>
+        </ScrollReveal>
 
-          <ScrollReveal delay={0.1}>
-            <div className="mt-8 max-w-2xl space-y-4 text-base leading-relaxed text-[#6b6560] md:text-lg">
-              <p>
-                You open one app to add a task. Another to log a habit. A third to set a
-                reminder. By the time you&apos;re done organizing your life, you&apos;ve lost
-                the energy to actually live it.
-              </p>
-              <p className="font-semibold text-[#1a1a1a]">
-                Ru changes that. One conversation replaces the whole stack.
-              </p>
-            </div>
-          </ScrollReveal>
-
-          {/* Colorful stats */}
-          <ScrollReveal delay={0.2}>
-            <div className="mt-16 grid grid-cols-3 gap-4 md:gap-8">
-              {STATS.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="flex flex-col gap-2 rounded-2xl border border-[#1a1a1a]/5 bg-white/60 p-5 backdrop-blur-sm"
+        {/* Stats */}
+        <ScrollReveal delay={0.2}>
+          <div className="mt-16 grid grid-cols-3 gap-6">
+            {[
+              { number: "5 → 1", label: "Apps replaced", accent: "#e8593c" },
+              { number: "< 3s", label: "To organize a thought", accent: "#d4a853" },
+              { number: "Zero", label: "Forms to fill out", accent: "#3d8c6e" },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl border p-6"
+                style={{ background: "#fff", borderColor: "#e8e4de" }}
+              >
+                <span
+                  className="block text-3xl font-extrabold md:text-4xl"
+                  style={{ color: stat.accent, fontFamily: "var(--font-serif)" }}
                 >
-                  <span
-                    className="font-mono text-3xl font-extrabold md:text-5xl"
-                    style={{ color: stat.color, letterSpacing: "-0.03em" }}
-                  >
-                    {stat.value}
-                  </span>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#9a9590] md:text-sm">
-                    {stat.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </ScrollReveal>
-        </div>
-      </section>
-    </>
+                  {stat.number}
+                </span>
+                <span className="mt-2 block text-sm font-medium" style={{ color: "#8a847b" }}>
+                  {stat.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </ScrollReveal>
+      </div>
+    </section>
   );
 }

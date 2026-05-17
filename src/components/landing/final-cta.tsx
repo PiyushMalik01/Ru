@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ScrollReveal } from "./scroll-reveal";
-import { WaveDivider } from "./wave-divider";
 import { joinWaitlist } from "@/app/(landing)/actions";
 
 export function FinalCta() {
@@ -17,7 +16,7 @@ export function FinalCta() {
     const result = await joinWaitlist(email.trim());
     if (result.success) {
       setStatus("success");
-      setMessage("You're on the list. We'll be in touch. 🎉");
+      setMessage("You're on the list. We'll be in touch.");
       setEmail("");
     } else {
       setStatus("error");
@@ -26,88 +25,72 @@ export function FinalCta() {
   }
 
   return (
-    <>
-      <WaveDivider topColor="#0a0a0f" bottomColor="#1a0a2e" />
+    <section className="relative overflow-hidden px-6 py-28 md:px-12 md:py-40" style={{ background: "#e8593c" }}>
+      {/* Decorative circles */}
+      <svg className="pointer-events-none absolute right-[10%] top-[15%] opacity-[0.1]" width="200" height="200" viewBox="0 0 200 200" fill="none">
+        <circle cx="100" cy="100" r="80" stroke="#fff" strokeWidth="1.5" strokeDasharray="6 8" />
+        <circle cx="100" cy="100" r="50" stroke="#fff" strokeWidth="1" strokeDasharray="4 6" />
+      </svg>
+      <svg className="pointer-events-none absolute left-[5%] bottom-[10%] opacity-[0.08]" width="120" height="120" viewBox="0 0 120 120" fill="none">
+        <circle cx="60" cy="60" r="50" stroke="#fff" strokeWidth="1.5" />
+      </svg>
 
-      <section className="relative overflow-hidden px-4 py-32 md:py-40" style={{ background: "linear-gradient(135deg, #1a0a2e 0%, #0f172a 50%, #0a1628 100%)" }}>
-        {/* Colorful mesh */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(circle 400px at 20% 30%, rgba(139,92,246,0.15) 0%, transparent 60%),
-              radial-gradient(circle 350px at 80% 70%, rgba(244,114,182,0.12) 0%, transparent 60%),
-              radial-gradient(circle 300px at 60% 20%, rgba(56,189,248,0.08) 0%, transparent 60%)
-            `,
-          }}
-        />
+      <div className="relative mx-auto max-w-3xl">
+        <ScrollReveal>
+          <h2
+            className="font-bold leading-tight"
+            style={{ fontFamily: "var(--font-serif)", color: "#fff", fontSize: "clamp(36px, 6vw, 72px)", lineHeight: 1.1 }}
+          >
+            Your life is complicated enough.
+          </h2>
+          <p
+            className="mt-3"
+            style={{ fontFamily: "var(--font-serif)", color: "rgba(255,255,255,0.7)", fontSize: "clamp(28px, 4vw, 48px)", lineHeight: 1.2 }}
+          >
+            Your organizer shouldn&apos;t be.
+          </p>
+        </ScrollReveal>
 
-        <div className="relative mx-auto max-w-3xl text-center">
-          <ScrollReveal>
-            <h2
-              className="font-bold tracking-tight text-white"
-              style={{ fontSize: "clamp(32px, 6vw, 64px)", lineHeight: 1.1 }}
-            >
-              Your life is complicated enough.
-            </h2>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.08}>
-            <p
-              className="mt-3 bg-gradient-to-r from-purple-300 to-pink-300 bg-clip-text text-transparent"
-              style={{ fontSize: "clamp(28px, 5vw, 56px)", lineHeight: 1.15, fontWeight: 300 }}
-            >
-              Your organizer shouldn&apos;t be.
-            </p>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.18}>
-            <div className="mt-12 flex flex-col items-center gap-5">
-              {status === "success" ? (
-                <p className="text-lg font-medium text-green-400">{message}</p>
-              ) : (
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex w-full max-w-md items-center rounded-full border border-white/10 bg-white/5 shadow-2xl shadow-purple-500/10 backdrop-blur-sm"
-                >
-                  <input
-                    type="email"
-                    required
-                    placeholder="Your email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 bg-transparent px-6 py-4 text-sm text-white placeholder:text-white/30 focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={status === "loading"}
-                    className="m-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.03] hover:shadow-xl disabled:opacity-50"
-                  >
-                    {status === "loading" ? "Joining..." : "Join waitlist"}
-                  </button>
-                </form>
-              )}
-
-              {status === "error" && (
-                <p className="text-sm text-red-400">{message}</p>
-              )}
-
-              <div className="flex items-center gap-4">
-                <div className="h-px w-12 bg-white/10" />
-                <span className="text-xs text-white/20">or</span>
-                <div className="h-px w-12 bg-white/10" />
-              </div>
-
-              <a
-                href="#"
-                className="text-sm font-medium text-purple-300 underline-offset-4 transition-colors hover:text-white hover:underline"
+        <ScrollReveal delay={0.15}>
+          <div className="mt-10 flex flex-col items-start gap-4">
+            {status === "success" ? (
+              <p className="text-lg font-semibold text-white">{message}</p>
+            ) : (
+              <form
+                onSubmit={handleSubmit}
+                className="flex w-full max-w-md items-center overflow-hidden rounded-full shadow-xl"
+                style={{ background: "#fff" }}
               >
-                Sign up free →
-              </a>
-            </div>
-          </ScrollReveal>
-        </div>
-      </section>
-    </>
+                <input
+                  type="email"
+                  required
+                  placeholder="Your email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 bg-transparent px-6 py-4 text-sm focus:outline-none"
+                  style={{ color: "#2d2a26" }}
+                />
+                <button
+                  type="submit"
+                  disabled={status === "loading"}
+                  className="m-1.5 rounded-full px-6 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: "#2d2a26" }}
+                >
+                  {status === "loading" ? "Joining..." : "Join waitlist"}
+                </button>
+              </form>
+            )}
+
+            {status === "error" && (
+              <p className="text-sm font-medium text-white/80">{message}</p>
+            )}
+
+            <a href="#" className="text-sm font-medium text-white/70 underline-offset-4 transition-colors hover:text-white hover:underline">
+              or sign up now →
+            </a>
+          </div>
+        </ScrollReveal>
+      </div>
+    </section>
   );
 }

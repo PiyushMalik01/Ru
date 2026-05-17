@@ -1,163 +1,158 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Marquee } from "./marquee";
-import { NoiseTexture } from "./noise-texture";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-const BAR_CONFIG = [
-  { h: 24, color: "#a78bfa" },
-  { h: 44, color: "#c084fc" },
-  { h: 64, color: "#f472b6" },
-  { h: 36, color: "#fb923c" },
-  { h: 56, color: "#fbbf24" },
-  { h: 72, color: "#34d399" },
-  { h: 48, color: "#38bdf8" },
-  { h: 68, color: "#818cf8" },
-  { h: 32, color: "#a78bfa" },
-  { h: 52, color: "#f472b6" },
-  { h: 76, color: "#fb923c" },
-  { h: 40, color: "#34d399" },
-  { h: 58, color: "#38bdf8" },
-  { h: 28, color: "#fbbf24" },
-  { h: 62, color: "#c084fc" },
-  { h: 46, color: "#f472b6" },
-];
-
-function AnimatedWaveform() {
-  return (
-    <>
-      <style>{`
-        ${BAR_CONFIG.map(
-          (b, i) => `
-          @keyframes wave-${i} {
-            0%, 100% { height: ${b.h * 0.4}px; opacity: 0.4; }
-            50% { height: ${b.h}px; opacity: 0.9; }
-          }
-        `
-        ).join("")}
-      `}</style>
-      <div className="flex w-full max-w-2xl items-end justify-center gap-[4px]" style={{ height: "80px" }}>
-        {BAR_CONFIG.map((b, i) => (
-          <div
-            key={i}
-            className="rounded-full"
-            style={{
-              width: "4px",
-              backgroundColor: b.color,
-              animation: `wave-${i} ${1.2 + (i % 5) * 0.2}s ease-in-out ${i * 0.08}s infinite`,
-              height: `${b.h * 0.4}px`,
-            }}
-          />
-        ))}
-      </div>
-    </>
-  );
-}
-
 export function Hero() {
   return (
-    <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#0a0a0f] px-4 text-center">
-      <NoiseTexture />
+    <section className="relative min-h-screen overflow-hidden" style={{ background: "#faf8f5" }}>
+      {/* Top nav bar */}
+      <nav className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
+        <span style={{ fontFamily: "var(--font-serif)", fontSize: "28px", color: "#2d2a26" }}>
+          Ru
+        </span>
+        <div className="flex items-center gap-8">
+          <a href="#features" className="text-sm font-medium" style={{ color: "#8a847b" }}>Features</a>
+          <a href="#how" className="text-sm font-medium" style={{ color: "#8a847b" }}>How it works</a>
+          <a
+            href="#"
+            className="rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-transform hover:scale-[1.03]"
+            style={{ background: "#e8593c" }}
+          >
+            Get early access
+          </a>
+        </div>
+      </nav>
 
-      {/* Colorful gradient mesh blobs */}
-      <div
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          background: `
-            radial-gradient(ellipse 60% 50% at 20% 20%, rgba(139,92,246,0.12) 0%, transparent 60%),
-            radial-gradient(ellipse 50% 40% at 80% 30%, rgba(244,114,182,0.10) 0%, transparent 60%),
-            radial-gradient(ellipse 40% 50% at 50% 80%, rgba(52,211,153,0.08) 0%, transparent 60%),
-            radial-gradient(ellipse 50% 40% at 70% 70%, rgba(251,146,60,0.06) 0%, transparent 60%)
-          `,
-        }}
-      />
+      {/* Decorative hand-drawn circle */}
+      <svg className="pointer-events-none absolute right-[10%] top-[15%] opacity-[0.07]" width="340" height="340" viewBox="0 0 340 340" fill="none">
+        <circle cx="170" cy="170" r="150" stroke="#2d2a26" strokeWidth="2" strokeDasharray="8 6" />
+        <circle cx="170" cy="170" r="120" stroke="#e8593c" strokeWidth="1.5" strokeDasharray="4 8" />
+      </svg>
 
-      {/* Top marquee */}
-      <div className="absolute top-0 left-0 right-0 z-10 border-b border-white/[0.06] py-3">
-        <Marquee />
-      </div>
+      {/* Small decorative dots */}
+      <svg className="pointer-events-none absolute left-[8%] bottom-[20%] opacity-[0.08]" width="120" height="120" viewBox="0 0 120 120">
+        {[0,1,2,3,4].map(row =>
+          [0,1,2,3,4].map(col => (
+            <circle key={`${row}-${col}`} cx={12 + col * 24} cy={12 + row * 24} r="2.5" fill="#2d2a26" />
+          ))
+        )}
+      </svg>
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center gap-5 pt-12">
-        {/* Pill badge */}
+      {/* Main content */}
+      <div className="relative z-10 mx-auto max-w-5xl px-6 pb-20 pt-12 md:px-12 md:pt-20">
+        {/* Eyebrow */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: EASE }}
-          className="flex items-center gap-2 rounded-full border border-purple-500/20 bg-purple-500/10 px-4 py-1.5"
+          className="mb-6 flex items-center gap-3"
         >
-          <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
-          <span className="font-mono text-xs font-medium text-purple-300">AI Life Organizer</span>
+          <div className="h-px w-10" style={{ background: "#e8593c" }} />
+          <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#e8593c" }}>
+            AI Life Organizer
+          </span>
         </motion.div>
 
-        {/* Giant headline */}
+        {/* Headline */}
         <motion.h1
-          initial={{ opacity: 0, y: 28 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.05, ease: EASE }}
-          className="font-extrabold tracking-tighter"
-          style={{ fontSize: "clamp(56px, 11vw, 130px)", lineHeight: 0.95 }}
+          style={{ fontFamily: "var(--font-serif)", color: "#2d2a26", fontSize: "clamp(48px, 8vw, 100px)", lineHeight: 1.05, letterSpacing: "-0.02em" }}
         >
-          <span className="bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
-            Just talk.
-          </span>
+          Just talk.
+          <br />
+          <span style={{ color: "#e8593c" }}>Your life</span> gets
+          <br />
+          organized.
         </motion.h1>
-
-        <motion.h2
-          initial={{ opacity: 0, y: 28 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: EASE }}
-          className="tracking-tighter"
-          style={{ fontSize: "clamp(36px, 8vw, 96px)", lineHeight: 1.0, fontWeight: 300 }}
-        >
-          <span className="bg-gradient-to-r from-[#71717a] via-purple-400/60 to-[#71717a] bg-clip-text text-transparent">
-            Your life gets organized.
-          </span>
-        </motion.h2>
 
         {/* Subtitle */}
         <motion.p
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.18, ease: EASE }}
-          className="max-w-xl text-base leading-relaxed text-[#a1a1aa] md:text-lg"
+          transition={{ duration: 0.8, delay: 0.15, ease: EASE }}
+          className="mt-6 max-w-lg text-lg leading-relaxed"
+          style={{ color: "#6b665e" }}
         >
-          Tell Ru about your day in plain English — it figures out what&apos;s a task,
-          what&apos;s a habit, what needs a reminder.{" "}
-          <span className="text-white/80">No forms. No apps. No friction.</span>
+          Tell Ru about your day in plain English. It figures out what&apos;s a task,
+          what&apos;s a habit, what needs a reminder. No forms, no apps — just conversation.
         </motion.p>
 
         {/* CTAs */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.26, ease: EASE }}
-          className="flex flex-wrap items-center justify-center gap-4 pt-2"
+          transition={{ duration: 0.8, delay: 0.25, ease: EASE }}
+          className="mt-8 flex flex-wrap items-center gap-4"
         >
           <a
             href="#"
-            className="rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-purple-500/25 transition-all duration-200 hover:scale-[1.03] hover:shadow-xl hover:shadow-purple-500/30"
+            className="rounded-full px-8 py-4 text-base font-semibold text-white transition-all hover:scale-[1.03]"
+            style={{ background: "#e8593c" }}
           >
             Get started — it&apos;s free
           </a>
           <a
-            href="#demo"
-            className="rounded-full border border-white/10 bg-white/5 px-6 py-3.5 text-base text-[#a1a1aa] transition-all hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-white"
+            href="#how"
+            className="rounded-full border-2 px-8 py-4 text-base font-semibold transition-colors hover:bg-[#2d2a26] hover:text-white"
+            style={{ borderColor: "#2d2a26", color: "#2d2a26" }}
           >
-            See how it works ↓
+            See how it works
           </a>
         </motion.div>
 
-        {/* Waveform */}
+        {/* Hero card — conversation preview */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.2, delay: 0.5, ease: EASE }}
-          className="mt-8 flex w-full items-center justify-center"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, delay: 0.4, ease: EASE }}
+          className="mt-14 max-w-xl overflow-hidden rounded-2xl border shadow-xl"
+          style={{ background: "#fff", borderColor: "#e8e4de" }}
         >
-          <AnimatedWaveform />
+          {/* Card header */}
+          <div className="flex items-center gap-2 border-b px-5 py-3" style={{ borderColor: "#e8e4de", background: "#f7f4ef" }}>
+            <div className="h-3 w-3 rounded-full" style={{ background: "#e8593c" }} />
+            <div className="h-3 w-3 rounded-full" style={{ background: "#d4a853" }} />
+            <div className="h-3 w-3 rounded-full" style={{ background: "#3d8c6e" }} />
+            <span className="ml-3 text-xs font-medium" style={{ color: "#b5af a5" }}>Ru</span>
+          </div>
+
+          <div className="p-5">
+            {/* User */}
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "#d4a853" }}>P</div>
+              <div className="rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "#f7f4ef" }}>
+                <p className="text-sm leading-relaxed" style={{ color: "#2d2a26" }}>
+                  Just finished a 5K run, need groceries on the way home, and remind me to call the dentist tomorrow at 9
+                </p>
+              </div>
+            </div>
+
+            {/* Ru */}
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "#e8593c" }}>Ru</div>
+              <div className="flex-1">
+                <p className="mb-3 text-sm font-medium" style={{ color: "#2d2a26" }}>Done! Here&apos;s what I organized:</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ background: "#f0faf4", borderLeft: "3px solid #3d8c6e" }}>
+                    <span className="text-xs font-bold" style={{ color: "#3d8c6e" }}>LOGGED</span>
+                    <span className="text-sm" style={{ color: "#2d2a26" }}>5K run — just now</span>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ background: "#fef9ee", borderLeft: "3px solid #d4a853" }}>
+                    <span className="text-xs font-bold" style={{ color: "#d4a853" }}>TASK</span>
+                    <span className="text-sm" style={{ color: "#2d2a26" }}>Buy groceries — today</span>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ background: "#eef5fb", borderLeft: "3px solid #4a7fb5" }}>
+                    <span className="text-xs font-bold" style={{ color: "#4a7fb5" }}>REMINDER</span>
+                    <span className="text-sm" style={{ color: "#2d2a26" }}>Call dentist — tomorrow, 9 AM</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
     </section>

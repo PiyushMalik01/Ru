@@ -17,27 +17,18 @@ export function ScrollReveal({
   className,
 }: ScrollRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
+  const isInView = useInView(ref, { once: true, margin: "50px 0px -50px 0px" });
 
-  const initial = {
-    opacity: 0,
-    y: direction === "up" ? 20 : 0,
-    x: direction === "left" ? 20 : direction === "right" ? -20 : 0,
-  };
-
-  const animate = {
-    opacity: isInView ? 1 : 0,
-    y: isInView ? 0 : initial.y,
-    x: isInView ? 0 : initial.x,
-  };
+  const y = direction === "up" ? 16 : 0;
+  const x = direction === "left" ? 16 : direction === "right" ? -16 : 0;
 
   return (
     <motion.div
       ref={ref}
-      initial={initial}
-      animate={animate}
+      initial={{ opacity: 0, y, x }}
+      animate={isInView ? { opacity: 1, y: 0, x: 0 } : { opacity: 0, y, x }}
       transition={{
-        duration: 0.7,
+        duration: 0.6,
         delay,
         ease: [0.16, 1, 0.3, 1],
       }}
