@@ -45,5 +45,26 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // First-run gate: new users must finish onboarding before reaching the app.
+  // /settings is allowed because the AI-connect step links there from /onboarding.
+  if (
+    user &&
+    !pathname.startsWith("/onboarding") &&
+    !pathname.startsWith("/settings") &&
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/auth")
+  ) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("onboarding_completed")
+      .eq("id", user.id)
+      .single();
+    if (profile && profile.onboarding_completed === false) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }

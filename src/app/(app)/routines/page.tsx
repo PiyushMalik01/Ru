@@ -1,10 +1,142 @@
-export default function RoutinesPage() {
+import { createClient } from "@/lib/supabase/server";
+import { fetchRoutinesWithToday, type RoutineWithToday } from "@/lib/queries/dashboard";
+import { RoutineRow } from "@/components/dashboard/routine-row";
+
+type BucketKey = "morning" | "midday" | "afternoon" | "evening" | "anytime";
+
+const BUCKET_ORDER: BucketKey[] = ["morning", "midday", "afternoon", "evening", "anytime"];
+
+const BUCKET_LABEL: Record<BucketKey, string> = {
+  morning: "morning",
+  midday: "midday",
+  afternoon: "afternoon",
+  evening: "evening",
+  anytime: "anytime",
+};
+
+const BUCKET_SUBLABEL: Record<BucketKey, string> = {
+  morning: "before 11",
+  midday: "11 – 15",
+  afternoon: "15 – 18",
+  evening: "after 18",
+  anytime: "no fixed hour",
+};
+
+function bucketFor(timeOfDay: string | null): BucketKey {
+  if (!timeOfDay) return "anytime";
+  const h = parseInt(timeOfDay.slice(0, 2), 10);
+  if (Number.isNaN(h)) return "anytime";
+  if (h < 11) return "morning";
+  if (h < 15) return "midday";
+  if (h < 18) return "afternoon";
+  return "evening";
+}
+
+export default async function RoutinesPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const routines: RoutineWithToday[] = user
+    ? await fetchRoutinesWithToday(supabase, user.id)
+    : [];
+
+  const grouped: Record<BucketKey, RoutineWithToday[]> = {
+    morning: [],
+    midday: [],
+    afternoon: [],
+    evening: [],
+    anytime: [],
+  };
+  for (const r of routines) grouped[bucketFor(r.time_of_day)].push(r);
+
+  const totalActive = routines.length;
+  const doneToday = routines.filter((r) => r.todayCompleted).length;
+
+  const today = new Date();
+  const dayName = today.toLocaleDateString([], { weekday: "long" }).toLowerCase();
+  const dateStr = today
+    .toLocaleDateString([], { month: "short", day: "numeric" })
+    .toLowerCase();
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Routines</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Your habits and daily routines. Auto-detected and manually declared.</p>
-      </div>
+    <div className="space-y-12 py-2">
+      {/* Header */}
+      <header className="max-w-2xl">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          routines · {dayName} {dateStr}
+        </div>
+        <h1 className="mt-4 text-[36px] font-medium leading-[1.05] tracking-tight">
+          The rhythm.
+        </h1>
+        {totalActive > 0 ? (
+          <p
+            className="mt-4 text-[15px] text-muted-foreground"
+            style={{ lineHeight: 1.65 }}
+          >
+            <span className="font-mono tabular-nums text-foreground">
+              {doneToday}
+            </span>
+            <span className="font-mono"> of </span>
+            <span className="font-mono tabular-nums text-foreground">
+              {totalActive}
+            </span>
+            <span className="font-mono"> done today.</span>{" "}
+            Mark them off as you go, or just tell Ru.
+          </p>
+        ) : (
+          <p
+            className="mt-4 text-[15px] text-muted-foreground"
+            style={{ lineHeight: 1.65 }}
+          >
+            Nothing here yet. Tell Ru about something you want to do regularly —{" "}
+            <span className="italic">
+              &ldquo;I want to meditate every morning at 7&rdquo;
+            </span>{" "}
+            — and it&rsquo;ll show up.
+          </p>
+        )}
+      </header>
+
+      {/* Buckets */}
+      {totalActive > 0 && (
+        <div className="space-y-10">
+          {BUCKET_ORDER.map((key) => {
+            const items = grouped[key];
+            if (items.length === 0) return null;
+            return (
+              <section key={key}>
+                <div className="mb-1 flex items-baseline gap-3 border-b border-[rgba(255,255,255,0.08)] pb-3">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
+                    {BUCKET_LABEL[key]}
+                  </span>
+                  <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground/60">
+                    {BUCKET_SUBLABEL[key]}
+                  </span>
+                  <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground/60">
+                    {items.length.toString().padStart(2, "0")}
+                  </span>
+                </div>
+                <div>
+                  {items.map((r) => (
+                    <RoutineRow
+                      key={r.id}
+                      id={r.id}
+                      title={r.title}
+                      frequency={r.frequency}
+                      timeOfDay={r.time_of_day}
+                      streak={r.streak}
+                      todayCompleted={r.todayCompleted}
+                      lastSevenDays={r.lastSevenDays}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
