@@ -8,12 +8,18 @@ export interface TTSHandle {
   stop: () => Promise<void>;
 }
 
+// aura-2-thalia-en is Aura-2's warmest, most conversational voice.
+// Other natural choices: aura-2-andromeda-en (rich female), aura-2-orion-en (male).
+// Asteria (Aura-1) is fastest but more robotic — avoid for conversational UX.
+const TTS_MODEL = "aura-2-thalia-en";
+const TTS_SAMPLE_RATE = 24000;
+
 export async function startTTS(): Promise<TTSHandle> {
   const tokenRes = await fetch("/api/deepgram/token", { method: "POST" });
   if (!tokenRes.ok) throw new Error("could not mint deepgram key");
   const { key } = await tokenRes.json();
 
-  const url = `wss://api.deepgram.com/v1/speak?model=aura-2-asteria-en&encoding=linear16&sample_rate=24000`;
+  const url = `wss://api.deepgram.com/v1/speak?model=${TTS_MODEL}&encoding=linear16&sample_rate=${TTS_SAMPLE_RATE}`;
   const ws = new WebSocket(url, ["token", key]);
   ws.binaryType = "arraybuffer";
   const player = new AudioPlayer();

@@ -54,7 +54,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setMessages: (messages) => set({ messages }),
   setVoiceMode: (v) => {
-    if (!v) stopTTS();
+    if (v) {
+      // Pre-warm the Aura WebSocket so the first response audio comes back
+      // ~1s sooner instead of waiting for handshake + token mint after generation starts.
+      getTTS().catch((e) => console.error("tts pre-warm failed", e));
+    } else {
+      stopTTS();
+    }
     set({ voiceMode: v });
   },
 
@@ -99,22 +105,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await stopTTS();
 
     abortController = new AbortController();
-    let sentenceBuf = "";
+    // Stream every token directly to Aura — flush on punctuation (Aura uses these to
+    // pace prosody) or every ~40 chars to keep latency low without choking the queue.
+    // This is what makes Ru feel like a live conversation instead of a synth that
+    // waits for a full sentence before speaking.
+    let charsSinceFlush = 0;
+    const flushBoundary = /[,.!?;:\n]/;
 
     const speakIfVoice = async (chunk: string, force: boolean = false) => {
       if (!get().voiceMode) return;
-      sentenceBuf += chunk;
-      const boundary = /([.!?\n]+)\s*$/;
-      if (force || boundary.test(sentenceBuf)) {
-        const out = sentenceBuf;
-        sentenceBuf = "";
-        try {
-          const tts = await getTTS();
-          tts.speak(out);
-          tts.flush();
-        } catch (e) {
-          console.error("tts failed", e);
+      try {
+        const tts = await getTTS();
+        if (chunk) {
+          tts.speak(chunk);
+          charsSinceFlush += chunk.length;
         }
+        const hitPunct = chunk ? flushBoundary.test(chunk) : false;
+        if (force || hitPunct || charsSinceFlush >= 40) {
+          tts.flush();
+          charsSinceFlush = 0;
+        }
+      } catch (e) {
+        console.error("tts failed", e);
       }
     };
 
@@ -160,7 +172,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           } else if (event.type === "stream_end") {
             last.streaming = false;
             if (event.assistantMessageId) last.id = String(event.assistantMessageId);
-            await speakIfVoice("", true);
+            await speakIfVoice("", true); // force flush remaining
           } else if (event.type === "error") {
             set({ status: "error", errorMessage: String(event.message ?? "stream error") });
           }
