@@ -5,18 +5,28 @@ import { useChatStore, type ChatMessage } from "@/lib/stores/chat-store";
 import { MessageList } from "./message-list";
 import { ThinkingIndicator } from "./thinking-indicator";
 
-export function ChatView({ initialMessages = [] }: { initialMessages?: ChatMessage[] }) {
+interface Props {
+  initialMessages?: ChatMessage[];
+  chatId?: string | null;
+  chatTitle?: string | null;
+}
+
+export function ChatView({ initialMessages = [], chatId = null }: Props) {
   const messages = useChatStore((s) => s.messages);
   const status = useChatStore((s) => s.status);
   const thinking = useChatStore((s) => s.thinking);
   const thinkingLabel = useChatStore((s) => s.thinkingLabel);
   const hydrate = useChatStore((s) => s.hydrate);
+  const storeChatId = useChatStore((s) => s.chatId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Hydrate the store with server-rendered history on first mount.
+  // Re-hydrate whenever the chat id changes (navigation between threads in
+  // the sidebar). The hydrate action handles the no-op when nothing changed.
   useEffect(() => {
-    if (initialMessages.length > 0) hydrate(initialMessages);
-  }, [hydrate, initialMessages]);
+    if (chatId !== storeChatId) {
+      hydrate(initialMessages, chatId);
+    }
+  }, [chatId, storeChatId, initialMessages, hydrate]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -24,7 +34,6 @@ export function ChatView({ initialMessages = [] }: { initialMessages?: ChatMessa
 
   const showLoader =
     (thinking === "thinking" || thinking === "tooling") &&
-    // Only show as a standalone row while the assistant message is still empty.
     messages[messages.length - 1]?.streaming &&
     !messages[messages.length - 1]?.content;
 

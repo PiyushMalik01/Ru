@@ -27,12 +27,12 @@ interface ChatState {
   thinkingLabel: string | null;
   errorMessage: string | null;
   voiceMode: boolean;
-  // Continuous conversation: when on, after Ru finishes speaking we auto-resume
-  // listening so the user doesn't tap mic every turn. Active in voice-only mode.
   continuousVoice: boolean;
   hydrated: boolean;
+  chatId: string | null;
 
-  hydrate: (messages: ChatMessage[]) => void;
+  hydrate: (messages: ChatMessage[], chatId: string | null) => void;
+  setChatId: (chatId: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   setVoiceMode: (v: boolean) => void;
   setContinuousVoice: (v: boolean) => void;
@@ -144,12 +144,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   voiceMode: false,
   continuousVoice: false,
   hydrated: false,
+  chatId: null,
 
-  hydrate: (messages) => {
-    if (get().hydrated) return;
-    set({ messages, hydrated: true });
+  hydrate: (messages, chatId) => {
+    // Re-hydrate when chat id changes (navigation between chats).
+    if (get().hydrated && get().chatId === chatId) return;
+    abortController?.abort();
+    abortController = null;
+    flushType(set as Setter, get);
+    set({
+      messages,
+      chatId,
+      hydrated: true,
+      status: "idle",
+      thinking: "idle",
+      thinkingLabel: null,
+      errorMessage: null,
+    });
   },
 
+  setChatId: (chatId) => set({ chatId }),
   setMessages: (messages) => set({ messages }),
 
   setVoiceMode: (v) => {
@@ -249,10 +263,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     };
 
     try {
+      const currentChatId = get().chatId;
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: trimmed, voice: get().voiceMode }),
+        body: JSON.stringify({
+          message: trimmed,
+          voice: get().voiceMode,
+          chatId: currentChatId ?? undefined,
+        }),
         signal: abortController.signal,
       });
       if (!res.ok || !res.body) {
@@ -316,6 +335,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
               last.streaming = false;
               if (event.assistantMessageId) last.id = String(event.assistantMessageId);
               set({ messages: msgs });
+            }
+            // If the server created/resolved a chat id, adopt it so subsequent
+            // turns continue in the same thread.
+            if (event.chatId && !get().chatId) {
+              set({ chatId: String(event.chatId) });
             }
             await speakIfVoice("", true);
           } else if (event.type === "error") {

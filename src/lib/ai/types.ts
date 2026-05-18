@@ -25,7 +25,7 @@ export type StreamEvent =
   | { type: "tool_result"; toolCallId: string; result: unknown; cardKind?: string; card?: unknown }
   | { type: "done"; finishReason: string }
   | { type: "error"; message: string }
-  | { type: "stream_end"; userMessageId?: string; assistantMessageId?: string };
+  | { type: "stream_end"; userMessageId?: string; assistantMessageId?: string; chatId?: string };
 
 export interface ProviderConfig {
   provider: Provider;

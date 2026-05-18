@@ -6,48 +6,49 @@ import { buildSystemPrompt } from "./system-prompt";
 export async function assembleContext(opts: {
   supabase: SupabaseClient<Database>;
   userId: string;
+  chatId: string;
   newUserMessage: string;
   voice?: boolean;
 }): Promise<NormalizedMessage[]> {
-  const { supabase, userId, newUserMessage, voice } = opts;
-  const startOfToday = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+  const { supabase, userId, chatId, newUserMessage, voice } = opts;
 
-  const [profileRes, todayMessagesRes, summariesRes, routinesRes, tasksRes, todayLogsRes] = await Promise.all([
+  // Pull this chat's history (most recent 60 messages — enough for continuity
+  // without blowing token budgets). User-level state is fetched separately.
+  const [profileRes, chatMessagesRes, summariesRes, routinesRes, tasksRes] = await Promise.all([
     supabase.from("profiles").select("display_name, timezone").eq("id", userId).single(),
-    supabase.from("messages")
+    supabase
+      .from("messages")
       .select("role, content")
       .eq("user_id", userId)
-      .gte("created_at", startOfToday)
+      .eq("chat_id", chatId)
       .order("created_at", { ascending: true })
-      .limit(200),
-    supabase.from("daily_summaries")
+      .limit(60),
+    supabase
+      .from("daily_summaries")
       .select("date, message_summary")
       .eq("user_id", userId)
       .order("date", { ascending: false })
       .limit(7),
-    supabase.from("routines")
+    supabase
+      .from("routines")
       .select("title, frequency, time_of_day, nudge_level")
       .eq("user_id", userId)
       .eq("is_active", true),
-    supabase.from("tasks")
+    supabase
+      .from("tasks")
       .select("title, priority, due_at, status")
       .eq("user_id", userId)
       .in("status", ["pending", "in_progress"])
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(20),
-    supabase.from("activity_log")
-      .select("activity, category, timestamp")
-      .eq("user_id", userId)
-      .gte("timestamp", startOfToday)
-      .order("timestamp", { ascending: true }),
   ]);
 
   const profile = profileRes.data;
-  const todayMessages = (todayMessagesRes.data ?? []) as { role: "user" | "assistant"; content: string }[];
+  // Drop the newly inserted empty assistant placeholder from history if present
+  const chatMessages = (chatMessagesRes.data ?? []).filter((m) => m.content && m.content.length > 0);
   const summaries = summariesRes.data ?? [];
   const routines = routinesRes.data ?? [];
   const tasks = tasksRes.data ?? [];
-  const todayLogs = todayLogsRes.data ?? [];
 
   const stateBlock = [
     summaries.length
@@ -59,10 +60,18 @@ export async function assembleContext(opts: {
     tasks.length
       ? `Open tasks:\n${tasks.map((t) => `- [${t.priority}] ${t.title}${t.due_at ? ` (due ${t.due_at})` : ""}`).join("\n")}`
       : "No open tasks.",
-    todayLogs.length
-      ? `Today's logged activities:\n${todayLogs.map((a) => `- ${a.activity} (${a.category})`).join("\n")}`
-      : "Nothing logged today yet.",
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  // The new message at the bottom — we don't include it in chatMessages because
+  // the API route inserts it before calling this, but its content matches
+  // newUserMessage so we add it explicitly to make the seam obvious to the model.
+  const historyMinusLast = chatMessages.slice(0, -1);
+  const lastInHistory = chatMessages[chatMessages.length - 1];
+  const lastMatchesNew =
+    lastInHistory && lastInHistory.role === "user" && lastInHistory.content === newUserMessage;
+  const priorHistory = lastMatchesNew ? historyMinusLast : chatMessages;
 
   const messages: NormalizedMessage[] = [
     {
@@ -75,7 +84,7 @@ export async function assembleContext(opts: {
       }),
     },
     { role: "system", content: stateBlock },
-    ...todayMessages.map((m) => ({ role: m.role, content: m.content }) as NormalizedMessage),
+    ...priorHistory.map((m) => ({ role: m.role, content: m.content }) as NormalizedMessage),
     { role: "user", content: newUserMessage },
   ];
 

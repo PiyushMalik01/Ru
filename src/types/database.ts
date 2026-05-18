@@ -99,14 +99,42 @@ export type Database = {
         }
         Relationships: []
       }
+      chats: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          archived: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title?: string
+          archived?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          archived?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
           created_at: string
           id: string
+          chat_id: string | null
           input_method: "text" | "voice"
           intent: "log" | "plan" | "query" | "remind" | "reflect" | "modify" | "declare" | null
-          metadata: Json
+          metadata: Record<string, unknown>
           role: "user" | "assistant"
           user_id: string
         }
@@ -114,9 +142,10 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          chat_id?: string | null
           input_method?: "text" | "voice"
           intent?: "log" | "plan" | "query" | "remind" | "reflect" | "modify" | "declare" | null
-          metadata?: Json
+          metadata?: Record<string, unknown>
           role: "user" | "assistant"
           user_id: string
         }
@@ -124,9 +153,10 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          chat_id?: string | null
           input_method?: "text" | "voice"
           intent?: "log" | "plan" | "query" | "remind" | "reflect" | "modify" | "declare" | null
-          metadata?: Json
+          metadata?: Record<string, unknown>
           role?: "user" | "assistant"
           user_id?: string
         }
@@ -137,6 +167,7 @@ export type Database = {
           ai_credentials: Json | null
           ai_provider: "chatgpt_oauth" | "openai" | "anthropic" | "gemini" | null
           created_at: string
+          current_chat_id: string | null
           current_workspace_id: string | null
           display_name: string
           id: string
@@ -150,6 +181,7 @@ export type Database = {
           ai_credentials?: Json | null
           ai_provider?: "chatgpt_oauth" | "openai" | "anthropic" | "gemini" | null
           created_at?: string
+          current_chat_id?: string | null
           current_workspace_id?: string | null
           display_name?: string
           id: string
@@ -163,6 +195,7 @@ export type Database = {
           ai_credentials?: Json | null
           ai_provider?: "chatgpt_oauth" | "openai" | "anthropic" | "gemini" | null
           created_at?: string
+          current_chat_id?: string | null
           current_workspace_id?: string | null
           display_name?: string
           id?: string
