@@ -62,14 +62,18 @@ const ANCHORS: Record<string, Anchor[]> = {
     { xPct: 10, yPct: 56, tail: "left" },
     { xPct: 90, yPct: 76, tail: "right" },
   ],
-  // /chat — Ru still shows up, just peeks from a couple of out-of-the-way spots
-  // since the chat surface is dense.
-  chat: [
-    { xPct: 92, yPct: 18, tail: "right" },
-    { xPct: 88, yPct: 80, tail: "right" },
-  ],
+  // /chat — Ru sits in ONE fixed spot (no rotation). The user explicitly asked
+  // her not to roam here since the chat surface is dense and she'd distract.
+  chat: [{ xPct: 92, yPct: 20, tail: "right" }],
   fallback: [{ xPct: 88, yPct: 22, tail: "right" }],
 };
+
+/**
+ * When the AskHud is summoned, Ru flies over to it and stays there until it
+ * closes. Positioned just above-left of the HUD so she's "watching the
+ * conversation" without overlapping the cloud or the pill.
+ */
+const ASKHUD_ANCHOR: Anchor = { xPct: 30, yPct: 72, tail: "left" };
 
 function bucketFor(pathname: string): keyof typeof ANCHORS | null {
   if (pathname.startsWith("/settings")) return null;
@@ -106,7 +110,14 @@ const DEPTH_KEYFRAMES = {
 export function RuGhost() {
   const pathname = usePathname();
   const bucket = useMemo(() => bucketFor(pathname), [pathname]);
-  const anchors = bucket ? ANCHORS[bucket] : null;
+  const askHudOpen = useRuCompanion((s) => s.askHudOpen);
+
+  // Anchors are hijacked by the AskHud when it's open: Ru flies to its
+  // anchor and stays put until it closes.
+  const anchors = useMemo<Anchor[] | null>(() => {
+    if (askHudOpen) return [ASKHUD_ANCHOR];
+    return bucket ? ANCHORS[bucket] : null;
+  }, [askHudOpen, bucket]);
 
   const [anchorIdx, setAnchorIdx] = useState(0);
   const [colorIdx, setColorIdx] = useState(0);
@@ -114,9 +125,9 @@ export function RuGhost() {
 
   useEffect(() => {
     setAnchorIdx(0);
-  }, [bucket]);
+  }, [bucket, askHudOpen]);
 
-  // Anchor rotation — every 16-28s.
+  // Anchor rotation — every 16-28s. Skipped when only one anchor (chat, HUD open).
   useEffect(() => {
     if (!anchors || anchors.length <= 1) return;
     const wait = 16_000 + Math.random() * 12_000;

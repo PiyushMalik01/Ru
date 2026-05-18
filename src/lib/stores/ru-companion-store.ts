@@ -21,11 +21,14 @@ interface RuCompanionState {
   said: SaidLine | null;
   /** True when Ru is hidden entirely (e.g. on /chat where she'd clutter). */
   hidden: boolean;
+  /** True when the AskHud is summoned. Ru flies over to it and stays put. */
+  askHudOpen: boolean;
 
   setExpression: (e: RuExpression) => void;
   say: (text: string, lifeMs?: number) => void;
   clear: () => void;
   setHidden: (hidden: boolean) => void;
+  setAskHudOpen: (open: boolean) => void;
   /**
    * Convenience: trigger an expression for a short duration, then return to happy.
    * Used by components to make Ru "react" to a click/action.
@@ -41,10 +44,13 @@ export const useRuCompanion = create<RuCompanionState>((set) => ({
   expression: "happy",
   said: null,
   hidden: false,
+  askHudOpen: false,
 
   setExpression: (e) => set({ expression: e }),
 
   setHidden: (hidden) => set({ hidden }),
+
+  setAskHudOpen: (open) => set({ askHudOpen: open }),
 
   say: (text, lifeMs = 4500) => {
     if (clearTimer) clearTimeout(clearTimer);

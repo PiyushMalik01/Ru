@@ -19,6 +19,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Send, Square, X } from "lucide-react";
 import { useChatStore, type ChatMessage } from "@/lib/stores/chat-store";
+import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { Markdown } from "@/components/chat/markdown";
 import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
@@ -141,6 +142,14 @@ export function AskOverlay() {
   useEffect(() => {
     setPageContext(ctx.hint ? { hint: ctx.hint, workspaceId: ctx.workspaceId } : null);
   }, [ctx, setPageContext]);
+
+  // Tell Ru the HUD is open so she flies over and sits near it while we talk.
+  useEffect(() => {
+    useRuCompanion.getState().setAskHudOpen(open);
+    return () => {
+      useRuCompanion.getState().setAskHudOpen(false);
+    };
+  }, [open]);
 
   // "/" anywhere opens the HUD; Esc closes it.
   useEffect(() => {
