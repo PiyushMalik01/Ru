@@ -6,23 +6,28 @@ import { cn } from "@/lib/utils";
 export type OrbPhase = "ready" | "listening" | "thinking" | "speaking";
 
 /**
- * The big conversational orb. Monochrome, restrained — no gradient/rainbow.
- * State is conveyed through breath-rate and ring expansion, not color.
+ * Monochrome breathing orb. State is conveyed through breath rate and ring
+ * expansion — no rainbow/gradient, no AI cliches. Renderable at any size; the
+ * concentric rings scale relative to the size.
  */
-export function VoiceOrb({ phase }: { phase: OrbPhase }) {
-  return (
-    <div className="relative flex h-[240px] w-[240px] items-center justify-center">
-      {/* Outer rings — slower the more idle, faster the more active */}
-      <Ring phase={phase} delay={0} max={240} />
-      <Ring phase={phase} delay={0.7} max={210} />
-      <Ring phase={phase} delay={1.4} max={180} />
+export function VoiceOrb({ phase, size = 240 }: { phase: OrbPhase; size?: number }) {
+  const coreSize = size / 2;
 
-      {/* Core orb */}
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      <Ring phase={phase} delay={0} max={size} core={coreSize} />
+      <Ring phase={phase} delay={0.7} max={size * 0.875} core={coreSize} />
+      <Ring phase={phase} delay={1.4} max={size * 0.75} core={coreSize} />
+
       <motion.div
         className={cn(
-          "relative h-[120px] w-[120px] rounded-full",
-          "bg-foreground shadow-[0_0_50px_rgba(255,255,255,0.18)]"
+          "relative rounded-full bg-foreground",
+          size >= 100 ? "shadow-[0_0_50px_rgba(255,255,255,0.18)]" : "shadow-[0_0_18px_rgba(255,255,255,0.22)]"
         )}
+        style={{ width: coreSize, height: coreSize }}
         animate={
           phase === "listening"
             ? { scale: [1, 1.07, 1] }
@@ -43,21 +48,30 @@ export function VoiceOrb({ phase }: { phase: OrbPhase }) {
   );
 }
 
-function Ring({ phase, delay, max }: { phase: OrbPhase; delay: number; max: number }) {
-  // Each ring grows from the core outward and fades. Cadence matches the orb.
+function Ring({
+  phase,
+  delay,
+  max,
+  core,
+}: {
+  phase: OrbPhase;
+  delay: number;
+  max: number;
+  core: number;
+}) {
   const active = phase !== "ready";
   return (
     <motion.span
       className="absolute rounded-full border border-foreground"
-      style={{ width: 0, height: 0 }}
+      style={{ width: core, height: core }}
       animate={
         active
           ? {
-              width: [120, max],
-              height: [120, max],
+              width: [core, max],
+              height: [core, max],
               opacity: [0.25, 0],
             }
-          : { width: 120, height: 120, opacity: 0.15 }
+          : { width: core, height: core, opacity: 0.15 }
       }
       transition={{
         duration: phase === "listening" ? 1.8 : phase === "speaking" ? 1.2 : 2.6,

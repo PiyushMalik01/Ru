@@ -131,8 +131,14 @@ export function FloatingPill() {
   const showSend = !showStop && state === "typing" && input.trim().length > 0;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
-      <div className="relative w-full max-w-xl">
+    <>
+      <div
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 transition-opacity",
+          orbOpen && "pointer-events-none opacity-0"
+        )}
+      >
+        <div className="relative w-full max-w-xl">
         <div
           className={cn(
             "flex items-center gap-2 rounded-full border bg-elevated px-5 py-1.5 transition-all",
@@ -211,13 +217,14 @@ export function FloatingPill() {
           </button>
         </div>
 
-        {/* Subtle 1px opacity-pulse line under the pill while streaming */}
-        {isStreaming && (
-          <div
-            aria-hidden
-            className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[rgba(255,255,255,0.18)]"
-          />
-        )}
+          {/* Subtle 1px opacity-pulse line under the pill while streaming */}
+          {isStreaming && (
+            <div
+              aria-hidden
+              className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[rgba(255,255,255,0.18)]"
+            />
+          )}
+        </div>
       </div>
 
       {orbOpen && (
@@ -228,7 +235,7 @@ export function FloatingPill() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }
 

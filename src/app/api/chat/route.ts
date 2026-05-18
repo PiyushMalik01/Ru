@@ -10,7 +10,10 @@ import type { Provider, ProviderConfig } from "@/lib/ai/types";
 
 export const dynamic = "force-dynamic";
 
-const BodySchema = z.object({ message: z.string().min(1).max(4000) });
+const BodySchema = z.object({
+  message: z.string().min(1).max(4000),
+  voice: z.boolean().optional(),
+});
 
 const MODEL_DEFAULTS: Record<Provider, string> = {
   chatgpt_oauth: CODEX_MODEL,
@@ -73,7 +76,12 @@ export async function POST(req: NextRequest) {
     input_method: "text",
   }).select().single();
 
-  const messages = await assembleContext({ supabase, userId: user.id, newUserMessage: parsed.data.message });
+  const messages = await assembleContext({
+    supabase,
+    userId: user.id,
+    newUserMessage: parsed.data.message,
+    voice: parsed.data.voice ?? false,
+  });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

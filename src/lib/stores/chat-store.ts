@@ -224,15 +224,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let charsSinceFlush = 0;
     const flushBoundary = /[,.!?;:\n]/;
 
+    // Strip markdown from each delta before Aura speaks — otherwise it reads
+    // "dot", "star", "hash" literally. Visual display still uses raw md.
+    const { createSpeakableStream } = await import("@/lib/voice/speakable");
+    const speakable = createSpeakableStream();
+
     const speakIfVoice = async (chunk: string, force: boolean = false) => {
       if (!get().voiceMode) return;
       try {
         const tts = await getTTS();
-        if (chunk) {
-          tts.speak(chunk);
-          charsSinceFlush += chunk.length;
+        const spoken = chunk ? speakable.push(chunk) : (force ? speakable.flush() : "");
+        if (spoken) {
+          tts.speak(spoken);
+          charsSinceFlush += spoken.length;
         }
-        const hitPunct = chunk ? flushBoundary.test(chunk) : false;
+        const hitPunct = spoken ? flushBoundary.test(spoken) : false;
         if (force || hitPunct || charsSinceFlush >= 40) {
           tts.flush();
           charsSinceFlush = 0;
@@ -246,7 +252,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, voice: get().voiceMode }),
         signal: abortController.signal,
       });
       if (!res.ok || !res.body) {

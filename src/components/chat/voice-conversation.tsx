@@ -25,11 +25,17 @@ const STOP_PHRASES = [
 function isStopPhrase(text: string): boolean {
   const t = text.toLowerCase().replace(/[.,!?]/g, "").trim();
   if (STOP_PHRASES.some((p) => t === p || t.endsWith(" " + p))) return true;
-  // Single-word stops only count if they're alone
   if (t === "stop" || t === "done" || t === "exit") return true;
   return false;
 }
 
+/**
+ * Anchored at the bottom of the screen (where the pill normally lives) so the
+ * user can still see the streamed chat. Three big affordances:
+ *   - the orb itself (tap to interrupt Ru mid-speech)
+ *   - a left-side "Stop speaking" button when Ru is talking
+ *   - an X close button to end the conversation entirely
+ */
 export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const status = useChatStore((s) => s.status);
   const thinking = useChatStore((s) => s.thinking);
@@ -70,7 +76,6 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
             return;
           }
 
-          // Auto-submit on final
           const toSend = finalBufRef.current;
           finalBufRef.current = "";
           setTranscript("");
@@ -88,7 +93,6 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     }
   }, [onClose, sendText, stopSTT]);
 
-  // Start listening on mount
   useEffect(() => {
     void startListening();
     return () => {
@@ -102,7 +106,6 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (stoppingRef.current) return;
     if (status === "streaming") {
-      // Thinking until first token; speaking once text starts; tooling intercedes
       if (thinking === "speaking") setPhase("speaking");
       else if (thinking === "tooling") setPhase("thinking");
       else setPhase("thinking");
@@ -113,13 +116,12 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     }
   }, [status, thinking]);
 
-  // After Ru finishes speaking, wait for audio to drain then re-open the mic
+  // After Ru finishes speaking, wait for audio playback to drain then re-open the mic
   useEffect(() => {
     if (stoppingRef.current) return;
     if (status !== "idle") return;
-    if (sttRef.current) return; // already listening
+    if (sttRef.current) return;
 
-    // Poll until audio playback is finished, then resume mic
     ttsPollRef.current = setInterval(() => {
       if (!isTTSPlaying()) {
         if (ttsPollRef.current) {
@@ -138,10 +140,20 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     };
   }, [status, startListening]);
 
-  function handleStop() {
+  function interruptRu() {
+    // Tap the orb (or hit Stop speaking) while Ru is talking → cut her off
+    // and re-open the mic so the user can take the floor.
+    if (status === "streaming" || isTTSPlaying()) {
+      abort();
+    }
+  }
+
+  function handleClose() {
+    // Closing the conversation also stops audio. The previous version left
+    // Aura playing in the background — fixed.
     stoppingRef.current = true;
     stopSTT();
-    if (status === "streaming") abort();
+    abort();
     onClose();
   }
 
@@ -154,46 +166,81 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
           ? "Speaking"
           : "Ready";
 
+  const isSpeaking = phase === "speaking" || isTTSPlaying();
+
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm">
-      {/* Close button */}
-      <button
-        type="button"
-        onClick={handleStop}
-        aria-label="End conversation"
-        className="absolute right-6 top-6 flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-      >
-        <X className="h-4 w-4" />
-      </button>
-
-      <VoiceOrb phase={phase} />
-
-      <div className="mt-12 flex flex-col items-center gap-1 text-center">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          {statusLabel}
-        </span>
-        {transcript ? (
-          <p
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-4">
+      <div className="mx-auto flex max-w-3xl flex-col items-center">
+        {/* Live transcript bubble — floats above the orb so the user can see
+            what's being captured. Doesn't block the chat above it. */}
+        {(transcript || isSpeaking) && (
+          <div
             className={cn(
-              "mt-3 max-w-[42ch] text-[15px] italic text-muted-foreground",
-              "min-h-[1.5em]"
+              "pointer-events-auto mb-3 max-w-[42ch] rounded-full border border-border bg-card/90 px-4 py-1.5 text-center text-[12px] backdrop-blur-sm",
+              transcript ? "text-foreground italic" : "text-muted-foreground"
             )}
-            style={{ lineHeight: 1.5 }}
           >
-            &ldquo;{transcript}&rdquo;
-          </p>
-        ) : (
-          <p className="mt-3 max-w-[42ch] text-[13px] text-muted-foreground">
-            {phase === "listening"
-              ? "Just talk. Say 'that’s it' or tap close to end."
-              : phase === "thinking"
-                ? "Cooking your reply…"
-                : phase === "speaking"
-                  ? "" // Ru's words stream in the chat behind the overlay
-                  : ""}
-          </p>
+            {transcript || "Ru is speaking — tap orb to interrupt"}
+          </div>
         )}
+
+        {/* Bottom control row */}
+        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-border bg-elevated/95 px-4 py-2.5 shadow-2xl backdrop-blur-sm">
+          {/* Stop speaking — only when Ru is talking */}
+          <button
+            type="button"
+            onClick={interruptRu}
+            disabled={!isSpeaking}
+            className={cn(
+              "rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-all",
+              isSpeaking
+                ? "bg-secondary text-foreground hover:bg-secondary/80"
+                : "cursor-not-allowed text-muted-foreground/40"
+            )}
+            aria-label="Stop Ru speaking"
+          >
+            Stop speaking
+          </button>
+
+          {/* Compact orb — also a tap target to interrupt */}
+          <button
+            type="button"
+            onClick={interruptRu}
+            aria-label={isSpeaking ? "Interrupt and listen" : "Voice active"}
+            className="flex shrink-0 items-center justify-center rounded-full"
+          >
+            <SmallOrb phase={phase} />
+          </button>
+
+          {/* Live status label */}
+          <span className="min-w-[80px] font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+            {statusLabel}
+          </span>
+
+          {/* Close conversation */}
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="End conversation"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <p className="pointer-events-auto mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          Say &ldquo;that&rsquo;s it&rdquo; to end · tap orb to interrupt
+        </p>
       </div>
+    </div>
+  );
+}
+
+/** Compact orb for the bottom dock. Same breathing rhythm as the big one. */
+function SmallOrb({ phase }: { phase: OrbPhase }) {
+  return (
+    <div className="relative flex h-[44px] w-[44px] items-center justify-center">
+      <VoiceOrb phase={phase} size={44} />
     </div>
   );
 }

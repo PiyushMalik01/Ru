@@ -7,8 +7,9 @@ export async function assembleContext(opts: {
   supabase: SupabaseClient<Database>;
   userId: string;
   newUserMessage: string;
+  voice?: boolean;
 }): Promise<NormalizedMessage[]> {
-  const { supabase, userId, newUserMessage } = opts;
+  const { supabase, userId, newUserMessage, voice } = opts;
   const startOfToday = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
 
   const [profileRes, todayMessagesRes, summariesRes, routinesRes, tasksRes, todayLogsRes] = await Promise.all([
@@ -70,6 +71,7 @@ export async function assembleContext(opts: {
         displayName: profile?.display_name ?? null,
         timezone: profile?.timezone ?? "UTC",
         nowIso: new Date().toISOString(),
+        voice: voice ?? false,
       }),
     },
     { role: "system", content: stateBlock },
