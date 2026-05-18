@@ -298,7 +298,7 @@ function SheetMasthead() {
         <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
           sheet
         </div>
-        <h1 className="mt-3 text-[26px] font-light leading-tight tracking-[-0.018em]">
+        <h1 className="mt-3 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
           Every thread, in one column.
         </h1>
       </div>

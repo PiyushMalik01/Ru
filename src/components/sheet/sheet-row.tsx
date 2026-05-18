@@ -110,7 +110,7 @@ export function SheetRow({ row, nowMs }: Props) {
       {/* 3. Title */}
       <span
         className={cn(
-          "min-w-0 truncate text-[14.5px] leading-tight",
+          "min-w-0 truncate text-[15px] font-medium leading-snug tracking-[-0.005em]",
           done && "text-muted-foreground line-through",
         )}
       >
