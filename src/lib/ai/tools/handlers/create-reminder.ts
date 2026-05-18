@@ -1,5 +1,6 @@
 import type { ToolContext, ToolOutcome } from "../executor";
 import { matchTask, matchRoutine } from "../fuzzy";
+import { getCurrentWorkspaceId, appendToWorkspaceOrder } from "../workspace-helpers";
 
 export async function createReminder(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolOutcome> {
   const title = String(args.title ?? "");
@@ -17,6 +18,8 @@ export async function createReminder(args: Record<string, unknown>, ctx: ToolCon
     linked_routine_id = m?.id ?? null;
   }
 
+  const workspaceId = await getCurrentWorkspaceId(ctx.supabase, ctx.userId);
+
   const { data, error } = await ctx.supabase.from("reminders").insert({
     user_id: ctx.userId,
     title,
@@ -25,14 +28,19 @@ export async function createReminder(args: Record<string, unknown>, ctx: ToolCon
     recurrence_rule: args.recurrence_rule ? String(args.recurrence_rule) : null,
     linked_task_id,
     linked_routine_id,
+    workspace_id: workspaceId,
   }).select().single();
 
   if (error || !data) return { ok: false, message: error?.message ?? "insert failed" };
+
+  if (workspaceId) {
+    await appendToWorkspaceOrder(ctx.supabase, workspaceId, "reminder", data.id);
+  }
 
   return {
     ok: true,
     message: `Reminder set for ${new Date(remind_at).toLocaleString()}`,
     cardKind: "reminder",
-    card: { id: data.id, title, remind_at, is_recurring: data.is_recurring },
+    card: { id: data.id, title, remind_at, is_recurring: data.is_recurring, workspaceId },
   };
 }

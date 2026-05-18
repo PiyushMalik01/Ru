@@ -160,6 +160,35 @@ export const TOOL_DEFINITIONS: NormalizedTool[] = [
       required: ["days_back"],
     },
   },
+  {
+    name: "open_workspace",
+    description:
+      "Start a named build session. Call this when the user wants something substantial built (3+ items, a plan, a routine reset, a project). Pick a short descriptive title from their request — they can rename it later. Subsequent create_task / declare_routine / create_reminder / log_activity calls in this turn auto-attach to the workspace, and the user sees them assembling live on the right panel. Skip for one-off logs or quick replies.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Short, specific title for this build session, e.g. 'OChem study plan' or 'Morning routine reset'.",
+        },
+        description: {
+          type: "string",
+          description: "Optional one-line context for the workspace.",
+        },
+        kind: {
+          type: "string",
+          enum: ["plan", "routine_build", "session"],
+        },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "close_workspace",
+    description:
+      "Close the currently active workspace. Call when the user signals they're done building (e.g. 'looks good, save that'). After this, future tool calls won't be attached to a workspace until you open a new one.",
+    parameters: { type: "object", properties: {} },
+  },
 ];
 
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name);

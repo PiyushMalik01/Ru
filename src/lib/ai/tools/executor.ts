@@ -11,6 +11,8 @@ import { queryAnalytics } from "./handlers/query-analytics";
 import { modifyTask } from "./handlers/modify-task";
 import { modifyRoutine } from "./handlers/modify-routine";
 import { getRoutineHistory } from "./handlers/get-routine-history";
+import { openWorkspace } from "./handlers/open-workspace";
+import { closeWorkspace } from "./handlers/close-workspace";
 
 export interface ToolContext {
   supabase: SupabaseClient<Database>;
@@ -38,6 +40,8 @@ const HANDLERS: Record<string, Handler> = {
   modify_task: modifyTask,
   modify_routine: modifyRoutine,
   get_routine_history: getRoutineHistory,
+  open_workspace: openWorkspace,
+  close_workspace: closeWorkspace,
 };
 
 export async function executeTool(
