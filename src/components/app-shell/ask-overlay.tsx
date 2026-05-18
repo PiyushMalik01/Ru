@@ -1,41 +1,147 @@
 "use client";
 
-// AskOverlay — the chat summoning surface for non-chat pages.
+// AskHud — a heads-up display, not a modal.
 //
-// Closed: a slim, subtle pill at the bottom-center reading "Ask Ru anything…".
-// Click (or focus, or hit "/") → the pill expands into a centered modal with
-// a backdrop blur. The user can type or hit the mic. Their message goes into
-// their current chat thread; Ru's streaming response renders inside the
-// overlay. Esc, backdrop click, or "Continue in chat ↗" dismisses.
+// Closed: a slim, context-aware pill at the bottom-center with a placeholder
+//   that reflects the page you're on ("Add a task...", "Update this plan...").
+// Open: the pill expands to a wider input; a glossy response card floats
+//   directly above it showing the streaming reply. The rest of the page
+//   stays fully visible and interactive — no full-screen overlay, no page
+//   blur. Like a car's heads-up display: it sits in the air over the road.
+//
+// Context: the HUD inspects the current pathname + search params and:
+//   1. picks a placeholder that frames the ask for that page
+//   2. sends a `context` payload to /api/chat so Ru's reply is relevant
+//      to what the user is looking at (a plan id, a sheet filter, etc.)
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Send, Square, X, ArrowUpRight } from "lucide-react";
+import { Mic, Send, Square, X } from "lucide-react";
 import { useChatStore, type ChatMessage } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { Markdown } from "@/components/chat/markdown";
 import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
 import { cn } from "@/lib/utils";
 
+interface PageContext {
+  label: string;
+  placeholder: string;
+  hint: string; // sent to the API to ground Ru's reply
+  workspaceId?: string;
+}
+
+function derivePageContext(
+  pathname: string,
+  filter: string | null
+): PageContext {
+  // /plans/[id] → plan-aware
+  const planMatch = pathname.match(/^\/plans\/([0-9a-f-]{36})$/i);
+  if (planMatch) {
+    return {
+      label: "this plan",
+      placeholder: "Update or extend this plan…",
+      hint: `The user is viewing a specific plan (workspace id ${planMatch[1]}). Any new tasks/routines they ask for should attach to this plan via open_workspace or by referencing the workspace_id.`,
+      workspaceId: planMatch[1],
+    };
+  }
+  if (pathname.startsWith("/plans")) {
+    return {
+      label: "plans",
+      placeholder: "Start a new plan…",
+      hint: "The user is on the Plans index. Frame replies around building or revisiting a plan.",
+    };
+  }
+  if (pathname.startsWith("/sheet")) {
+    if (filter === "tasks") {
+      return {
+        label: "tasks",
+        placeholder: "Add a task…",
+        hint: "The user is looking at their task list. Prefer creating tasks over routines.",
+      };
+    }
+    if (filter === "routines") {
+      return {
+        label: "routines",
+        placeholder: "Declare a routine…",
+        hint: "The user is looking at their routines. Prefer declaring routines.",
+      };
+    }
+    if (filter === "reminders") {
+      return {
+        label: "reminders",
+        placeholder: "Set a reminder…",
+        hint: "The user is looking at reminders. Prefer creating reminders.",
+      };
+    }
+    if (filter === "activities") {
+      return {
+        label: "activities",
+        placeholder: "Log an activity…",
+        hint: "The user is looking at their activity log. Prefer logging an activity.",
+      };
+    }
+    return {
+      label: "sheet",
+      placeholder: "Ask, log, or build…",
+      hint: "The user is on the unified Sheet view (all entity types visible).",
+    };
+  }
+  if (pathname.startsWith("/today")) {
+    return {
+      label: "today",
+      placeholder: "Ask Ru about your day…",
+      hint: "The user is on the Today briefing. Reply with what's relevant to today.",
+    };
+  }
+  if (pathname.startsWith("/settings")) {
+    return {
+      label: "settings",
+      placeholder: "Talk to Ru…",
+      hint: "The user is on Settings.",
+    };
+  }
+  return {
+    label: "ru",
+    placeholder: "Talk to Ru…",
+    hint: "",
+  };
+}
+
 export function AskOverlay() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const filter = searchParams?.get("filter") ?? null;
+  const ctx = useMemo(
+    () => derivePageContext(pathname, filter),
+    [pathname, filter]
+  );
+
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const sttRef = useRef<STTHandle | null>(null);
   const finalBufRef = useRef("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const status = useChatStore((s) => s.status);
   const thinking = useChatStore((s) => s.thinking);
   const thinkingLabel = useChatStore((s) => s.thinkingLabel);
   const messages = useChatStore((s) => s.messages);
   const sendText = useChatStore((s) => s.sendText);
+  const setPageContext = useChatStore((s) => s.setPageContext);
   const abort = useChatStore((s) => s.abort);
 
   const isStreaming = status === "streaming";
 
-  // "/" anywhere opens the overlay (when not typing in another input).
+  // Keep the chat store's pageContext in sync. The store forwards it to
+  // /api/chat with each sendText call so Ru's reply is contextually grounded.
+  useEffect(() => {
+    setPageContext(ctx.hint ? { hint: ctx.hint, workspaceId: ctx.workspaceId } : null);
+  }, [ctx, setPageContext]);
+
+  // "/" anywhere opens the HUD; Esc closes it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && open) {
@@ -54,10 +160,22 @@ export function AskOverlay() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  // Focus the input when the overlay opens.
+  // Click outside the HUD area closes it (but doesn't blur the page underneath).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
+
   useEffect(() => {
     if (open) {
-      const t = window.setTimeout(() => inputRef.current?.focus(), 50);
+      const t = window.setTimeout(() => inputRef.current?.focus(), 60);
       return () => window.clearTimeout(t);
     }
   }, [open]);
@@ -109,174 +227,164 @@ export function AskOverlay() {
     }
   }
 
-  // The last assistant message — used for the streaming preview in the overlay.
-  const lastAssistant: ChatMessage | null =
-    [...messages].reverse().find((m) => m.role === "assistant") ?? null;
+  const lastAssistant: ChatMessage | null = useMemo(
+    () => [...messages].reverse().find((m) => m.role === "assistant") ?? null,
+    [messages]
+  );
+
+  // The HUD response card shows when the HUD is open AND there's something
+  // to show (streaming or a recent assistant message with content).
+  const showResponse =
+    open && (isStreaming || (lastAssistant !== null && lastAssistant.content.length > 0));
 
   return (
-    <>
-      {/* Closed-state trigger — a slim pill at the bottom-center.
-          Glass-tinted, no chrome until hover. Always visible. */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Ask Ru"
-        className={cn(
-          "fixed inset-x-0 bottom-5 z-30 mx-auto flex w-fit items-center gap-2 px-4 py-2.5",
-          "rounded-full border border-[var(--hairline)] backdrop-blur-md",
-          "bg-[color:var(--background)]/70 text-foreground/80 shadow-sm",
-          "transition-all hover:bg-[color:var(--background)]/85 hover:text-foreground hover:scale-[1.02]"
-        )}
-      >
-        <span className="text-[12.5px] font-medium tracking-tight">Ask Ru</span>
-        <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 font-mono text-[9.5px] tracking-wide">
-          /
-        </span>
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setOpen(false);
-            }}
-          >
-            {/* Backdrop — semi-transparent, blurs the page beneath. */}
-            <div className="absolute inset-0 bg-[color:var(--background)]/60 backdrop-blur-md" />
-
-            {/* The card */}
+    <div
+      ref={containerRef}
+      className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4"
+    >
+      <div className="pointer-events-auto flex w-full max-w-md flex-col items-stretch gap-2">
+        {/* Floating response card — sits in the air ABOVE the pill */}
+        <AnimatePresence>
+          {showResponse && (
             <motion.div
-              initial={{ y: 12, scale: 0.98 }}
-              animate={{ y: 0, scale: 1 }}
-              exit={{ y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ opacity: 0, y: 12, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
               className={cn(
-                "relative z-10 w-full max-w-2xl overflow-hidden rounded-[28px]",
-                "border border-[var(--hairline)] bg-card text-card-foreground shadow-2xl"
+                "overflow-hidden rounded-3xl border border-[var(--hairline)]",
+                "bg-[color:var(--card)]/80 backdrop-blur-2xl",
+                "shadow-[0_18px_60px_-12px_rgba(0,0,0,0.25)]",
+                "dark:shadow-[0_24px_80px_-12px_rgba(0,0,0,0.55)]"
               )}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-[var(--hairline-soft)] px-5 py-3">
+              <div className="flex items-center justify-between px-5 pt-4">
                 <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                  Ask Ru
+                  ru · on {ctx.label}
                 </span>
-                <div className="flex items-center gap-2 text-[11px]">
-                  <Link
-                    href="/chat"
-                    className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    Open full chat <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    aria-label="Close"
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {isStreaming && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground/70">
+                    streaming
+                  </span>
+                )}
               </div>
 
-              {/* Streaming preview region — last assistant message + thinking */}
-              <div className="max-h-[40vh] min-h-[120px] overflow-y-auto px-5 py-5">
+              <div className="max-h-[42vh] overflow-y-auto px-5 pb-5 pt-3">
                 {lastAssistant && lastAssistant.content ? (
                   <div
-                    className="text-[15px] text-foreground"
-                    style={{ lineHeight: 1.65 }}
+                    className="text-[14.5px] text-foreground"
+                    style={{ lineHeight: 1.6 }}
                   >
                     <Markdown>{lastAssistant.content}</Markdown>
                   </div>
-                ) : isStreaming ? (
+                ) : (
                   <ThinkingIndicator
                     phase={thinking === "idle" ? "thinking" : thinking}
                     label={thinkingLabel}
                   />
-                ) : (
-                  <div className="flex h-full items-center justify-center py-6 text-center">
-                    <p className="max-w-md text-[13px] text-muted-foreground">
-                      Tell Ru what&rsquo;s on your mind. Quick log, a question,
-                      a plan to build — it&rsquo;ll show up in your chat.
-                    </p>
-                  </div>
                 )}
               </div>
-
-              {/* Input bar */}
-              <div className="border-t border-[var(--hairline-soft)] p-3">
-                <div
-                  className={cn(
-                    "flex items-center gap-2 rounded-full border border-[var(--hairline)] bg-[color:var(--background)] px-4 py-2",
-                    listening && "border-[var(--hairline-strong)]"
-                  )}
-                >
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        submit();
-                      }
-                    }}
-                    placeholder="Talk to Ru…"
-                    className="flex-1 bg-transparent py-1 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleMic}
-                    aria-label={listening ? "Stop listening" : "Start mic"}
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
-                      listening
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    )}
-                  >
-                    {listening ? (
-                      <Square className="h-3 w-3" />
-                    ) : (
-                      <Mic className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  {isStreaming ? (
-                    <button
-                      type="button"
-                      onClick={abort}
-                      aria-label="Stop"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background"
-                    >
-                      <Square className="h-3 w-3" />
-                    </button>
-                  ) : (
-                    input.trim() && (
-                      <button
-                        type="button"
-                        onClick={submit}
-                        aria-label="Send"
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                      </button>
-                    )
-                  )}
-                </div>
-                <div className="mt-2 flex items-center justify-between px-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  <span>esc to close · / to summon</span>
-                  {isStreaming && <span className="text-foreground/70">streaming</span>}
-                </div>
-              </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+          )}
+        </AnimatePresence>
+
+        {/* The pill — slim by default, expands inline when open */}
+        <motion.div
+          layout
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className={cn(
+            "relative overflow-hidden rounded-full border border-[var(--hairline)]",
+            "bg-[color:var(--card)]/80 backdrop-blur-xl",
+            "shadow-[0_8px_28px_-4px_rgba(0,0,0,0.18)]",
+            "dark:shadow-[0_10px_36px_-4px_rgba(0,0,0,0.5)]"
+          )}
+        >
+          {open ? (
+            <div className="flex items-center gap-2 px-3 py-2">
+              <div className="ml-1 flex shrink-0 items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--entity-routine)]" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  {ctx.label}
+                </span>
+              </div>
+
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+                placeholder={ctx.placeholder}
+                className="flex-1 bg-transparent px-2 py-1.5 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+
+              <button
+                type="button"
+                onClick={handleMic}
+                aria-label={listening ? "Stop listening" : "Start mic"}
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
+                  listening
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {listening ? (
+                  <Square className="h-3 w-3" />
+                ) : (
+                  <Mic className="h-3.5 w-3.5" />
+                )}
+              </button>
+
+              {isStreaming ? (
+                <button
+                  type="button"
+                  onClick={abort}
+                  aria-label="Stop"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background"
+                >
+                  <Square className="h-3 w-3" />
+                </button>
+              ) : input.trim() ? (
+                <button
+                  type="button"
+                  onClick={submit}
+                  aria-label="Send"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tint-hover)]"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--entity-routine)]" />
+              <span className="text-[12.5px] text-muted-foreground">{ctx.placeholder}</span>
+              <span className="ml-auto rounded-full bg-foreground/10 px-1.5 py-0.5 font-mono text-[9.5px] tracking-wide text-muted-foreground">
+                /
+              </span>
+            </button>
+          )}
+        </motion.div>
+      </div>
+    </div>
   );
 }

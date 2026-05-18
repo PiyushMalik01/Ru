@@ -20,6 +20,13 @@ export interface ChatMessage {
 // Phases the assistant cycles through during a turn — drives the loader UI.
 export type ThinkingPhase = "idle" | "thinking" | "tooling" | "speaking";
 
+// Context attached to a send so Ru's reply is relevant to the page the user
+// is asking from. Set by the AskHud; cleared on chat page.
+export interface PageContext {
+  hint: string;
+  workspaceId?: string;
+}
+
 interface ChatState {
   messages: ChatMessage[];
   status: "idle" | "streaming" | "error";
@@ -30,12 +37,14 @@ interface ChatState {
   continuousVoice: boolean;
   hydrated: boolean;
   chatId: string | null;
+  pageContext: PageContext | null;
 
   hydrate: (messages: ChatMessage[], chatId: string | null) => void;
   setChatId: (chatId: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   setVoiceMode: (v: boolean) => void;
   setContinuousVoice: (v: boolean) => void;
+  setPageContext: (ctx: PageContext | null) => void;
   sendText: (text: string) => Promise<void>;
   abort: () => void;
   reset: () => void;
@@ -145,6 +154,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   continuousVoice: false,
   hydrated: false,
   chatId: null,
+  pageContext: null,
+
+  setPageContext: (ctx) => set({ pageContext: ctx }),
 
   hydrate: (messages, chatId) => {
     // Re-hydrate when chat id changes (navigation between chats).
@@ -264,6 +276,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const currentChatId = get().chatId;
+      const ctx = get().pageContext;
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -271,6 +284,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           message: trimmed,
           voice: get().voiceMode,
           chatId: currentChatId ?? undefined,
+          pageContext: ctx ?? undefined,
         }),
         signal: abortController.signal,
       });

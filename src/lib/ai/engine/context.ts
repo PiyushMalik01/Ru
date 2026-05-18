@@ -9,8 +9,9 @@ export async function assembleContext(opts: {
   chatId: string;
   newUserMessage: string;
   voice?: boolean;
+  pageHint?: string | null;
 }): Promise<NormalizedMessage[]> {
-  const { supabase, userId, chatId, newUserMessage, voice } = opts;
+  const { supabase, userId, chatId, newUserMessage, voice, pageHint } = opts;
 
   // Pull this chat's history (most recent 60 messages — enough for continuity
   // without blowing token budgets). User-level state is fetched separately.
@@ -84,9 +85,21 @@ export async function assembleContext(opts: {
       }),
     },
     { role: "system", content: stateBlock },
-    ...priorHistory.map((m) => ({ role: m.role, content: m.content }) as NormalizedMessage),
-    { role: "user", content: newUserMessage },
   ];
+
+  // Page context — only included when the user is asking from a non-chat page.
+  // Lets Ru's reply land where the user is already looking.
+  if (pageHint && pageHint.trim()) {
+    messages.push({
+      role: "system",
+      content: `Page context (where the user is asking from):\n${pageHint.trim()}`,
+    });
+  }
+
+  messages.push(
+    ...priorHistory.map((m) => ({ role: m.role, content: m.content }) as NormalizedMessage),
+    { role: "user", content: newUserMessage }
+  );
 
   return messages;
 }
