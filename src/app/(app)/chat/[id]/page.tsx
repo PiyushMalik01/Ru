@@ -18,16 +18,27 @@ export default async function ChatThreadPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const chat = await fetchChat(supabase, user.id, id);
-  if (!chat) notFound();
-
-  // Make this the user's current chat so /chat lands here next time.
-  await supabase.from("profiles").update({ current_chat_id: id }).eq("id", user.id);
-
-  const [messages, chats] = await Promise.all([
+  // Fetch chat metadata, messages, and the sidebar list in a single round
+  // trip. The previous version awaited fetchChat sequentially, then awaited
+  // a profile.update, then awaited messages + chats — three serialized
+  // network round-trips per chat navigation. Now all three queries fly in
+  // parallel and the profile-update is fire-and-forget.
+  const [chat, messages, chats] = await Promise.all([
+    fetchChat(supabase, user.id, id),
     fetchChatMessages(supabase, user.id, id),
     listChats(supabase, user.id),
   ]);
+  if (!chat) notFound();
+
+  // Mark this as the user's current chat so /chat lands here next time.
+  // Doesn't affect render, so don't block on it.
+  void supabase
+    .from("profiles")
+    .update({ current_chat_id: id })
+    .eq("id", user.id)
+    .then(({ error }) => {
+      if (error) console.error("profile.current_chat_id update failed", error);
+    });
 
   const initialMessages: ChatMessage[] = messages
     .filter((m) => m.content && m.content.length > 0)

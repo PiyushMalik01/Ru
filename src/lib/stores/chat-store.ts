@@ -52,7 +52,13 @@ interface ChatState {
 
 let abortController: AbortController | null = null;
 
-type TTSHandleType = { speak: (text: string) => void; flush: () => void; stop: () => Promise<void>; isPlaying: () => boolean };
+type TTSHandleType = {
+  speak: (text: string) => void;
+  flush: () => void;
+  interrupt: () => void;
+  stop: () => Promise<void>;
+  isPlaying: () => boolean;
+};
 let ttsHandle: TTSHandleType | null = null;
 
 // Exported for the VoiceConversation orb to know when Ru is still speaking
@@ -65,6 +71,11 @@ async function getTTS(): Promise<TTSHandleType> {
   const { startTTS } = await import("@/lib/voice/tts");
   ttsHandle = await startTTS();
   return ttsHandle;
+}
+/** Cut audio mid-turn but KEEP the WS open so the next turn doesn't pay the
+ * handshake cost. Used between turns and on barge-in. */
+function interruptTTS() {
+  try { ttsHandle?.interrupt(); } catch {}
 }
 async function stopTTS() {
   if (ttsHandle) {
@@ -207,7 +218,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   abort: () => {
     abortController?.abort();
     abortController = null;
-    stopTTS();
+    // Interrupt audio but keep TTS connected — user might immediately speak
+    // again (barge-in) and we don't want to pay another WS handshake.
+    interruptTTS();
     flushType(set as Setter, get);
     const messages = get().messages.slice();
     const last = messages[messages.length - 1];
@@ -245,7 +258,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     tw = { messageId: assistantMsg.id, pending: "" };
 
-    await stopTTS();
+    // Interrupt previous TTS audio without closing the WebSocket — keeps
+    // turn-to-turn latency low. Aura's "Clear" message resets the server-side
+    // buffer; the AudioContext stays alive.
+    interruptTTS();
     abortController = new AbortController();
     let charsSinceFlush = 0;
     // Flush ONLY on true sentence boundaries. Commas/colons cause audible

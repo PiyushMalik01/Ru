@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   if (chatId) {
     const { data: existing } = await supabase
       .from("chats")
-      .select("id, title")
+      .select("id")
       .eq("id", chatId)
       .eq("user_id", user.id)
       .single();
@@ -102,60 +102,85 @@ export async function POST(req: NextRequest) {
         .single();
       if (error || !created) return new Response("could not create chat", { status: 500 });
       chatId = created.id;
-      await supabase.from("profiles").update({ current_chat_id: chatId }).eq("id", user.id);
+      // Fire-and-forget — the response render doesn't depend on this.
+      void supabase
+        .from("profiles")
+        .update({ current_chat_id: chatId })
+        .eq("id", user.id)
+        .then(({ error: e }) => { if (e) console.error("current_chat_id update failed", e); });
     }
   }
 
-  const { data: userMsg } = await supabase
+  // Time-to-first-token used to wait for ~6 sequential Supabase round-trips:
+  // user-msg insert, assistant-msg insert, chats select, chats update,
+  // then assembleContext, then the model call. That added 600-1500ms of
+  // perceived latency before Ru started speaking — the worst part of the
+  // voice UX. Refactor: pre-generate UUIDs client-side and fan out everything
+  // in parallel. Only the things runConversation actually needs are awaited:
+  //
+  //   - assistant insert (so tool calls can attribute messageId to a real row)
+  //   - assembleContext (the actual model context)
+  //
+  // The user-msg insert and chat title/bump fire in parallel and are awaited
+  // in the stream's `finally` block — never on the hot path.
+  const userMsgId = crypto.randomUUID();
+  const assistantMsgId = crypto.randomUUID();
+
+  const userInsertP = supabase
     .from("messages")
     .insert({
+      id: userMsgId,
       user_id: user.id,
       chat_id: chatId,
       role: "user",
       content: parsed.data.message,
       input_method: parsed.data.voice ? "voice" : "text",
     })
-    .select()
-    .single();
+    .then(({ error }) => { if (error) console.error("user msg insert failed", error); });
 
-  const { data: assistantMsg } = await supabase
+  const assistantInsertP = supabase
     .from("messages")
     .insert({
+      id: assistantMsgId,
       user_id: user.id,
       chat_id: chatId,
       role: "assistant",
       content: "",
       input_method: "text",
     })
-    .select()
-    .single();
+    .then(({ error }) => { if (error) console.error("assistant msg insert failed", error); });
 
-  // Auto-title: if the chat is still "New chat", derive a title from this first user message.
-  const { data: chatRow } = await supabase
-    .from("chats")
-    .select("title")
-    .eq("id", chatId)
-    .single();
-  if (chatRow && (chatRow.title === "New chat" || chatRow.title.trim() === "")) {
-    await supabase
+  // Chat title / updated_at — purely sidebar metadata. Defer until end of stream.
+  const chatMetaP = (async () => {
+    const { data: chatRow } = await supabase
       .from("chats")
-      .update({ title: deriveTitleFromMessage(parsed.data.message) })
-      .eq("id", chatId);
-  } else {
-    // Bump updated_at so the chat sorts to the top of the sidebar.
-    await supabase
+      .select("title")
+      .eq("id", chatId!)
+      .single();
+    if (chatRow && (chatRow.title === "New chat" || chatRow.title.trim() === "")) {
+      return supabase
+        .from("chats")
+        .update({ title: deriveTitleFromMessage(parsed.data.message) })
+        .eq("id", chatId!);
+    }
+    return supabase
       .from("chats")
       .update({ updated_at: new Date().toISOString() })
-      .eq("id", chatId);
-  }
+      .eq("id", chatId!);
+  })();
 
-  const messages = await assembleContext({
-    supabase,
-    userId: user.id,
-    chatId,
-    newUserMessage: parsed.data.message,
-    voice: parsed.data.voice ?? false,
-  });
+  // Wait only for what's strictly needed: the model's context, and the
+  // assistant row existing so tools can attribute to it.
+  const [messages] = await Promise.all([
+    assembleContext({
+      supabase,
+      userId: user.id,
+      chatId,
+      newUserMessage: parsed.data.message,
+      voice: parsed.data.voice ?? false,
+    }),
+    assistantInsertP,
+  ]);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -166,7 +191,7 @@ export async function POST(req: NextRequest) {
         for await (const event of runConversation({
           supabase,
           userId: user.id,
-          assistantMessageId: assistantMsg!.id,
+          assistantMessageId: assistantMsgId,
           config,
           initialMessages: messages,
           signal: req.signal,
@@ -177,18 +202,32 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         send({ type: "error", message: e instanceof Error ? e.message : "stream failed" });
       } finally {
-        if (assistantMsg) {
-          await supabase.from("messages").update({ content: assistantText }).eq("id", assistantMsg.id);
+        // Finalize all writes — user msg insert, assistant content save, chat
+        // metadata update — in parallel. None of these gate the user-visible
+        // stream_end event, but we await them so the route doesn't return
+        // before they settle (Vercel kills pending fetches otherwise).
+        try {
+          await Promise.all([
+            userInsertP,
+            supabase
+              .from("messages")
+              .update({ content: assistantText })
+              .eq("id", assistantMsgId),
+            chatMetaP,
+            // After the assistant content lands, bump updated_at once more so
+            // the sidebar shows the freshest order.
+            supabase
+              .from("chats")
+              .update({ updated_at: new Date().toISOString() })
+              .eq("id", chatId),
+          ]);
+        } catch (e) {
+          console.error("post-stream finalize failed", e);
         }
-        // Touch chat.updated_at again after the assistant message lands.
-        await supabase
-          .from("chats")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", chatId);
         send({
           type: "stream_end",
-          userMessageId: userMsg?.id,
-          assistantMessageId: assistantMsg?.id,
+          userMessageId: userMsgId,
+          assistantMessageId: assistantMsgId,
           chatId,
         });
         controller.close();

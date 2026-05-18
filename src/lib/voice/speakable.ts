@@ -8,6 +8,15 @@
  * Stateful: keeps a small carry buffer so a marker split across two deltas
  * (e.g. "*" then "*hello**") still gets stripped cleanly.
  */
+// Characters that could be the start of an incomplete markdown marker. Only
+// these need to be held back across delta boundaries — every other character
+// (letters, digits, punctuation, whitespace) is safe to forward immediately.
+const MARKDOWN_TAIL_CHARS = new Set(["*", "_", "`", "!", "[", "\\"]);
+
+function isPotentialMarkerChar(c: string): boolean {
+  return MARKDOWN_TAIL_CHARS.has(c);
+}
+
 export function createSpeakableStream() {
   let carry = "";
 
@@ -16,9 +25,21 @@ export function createSpeakableStream() {
     push(delta: string): string {
       const combined = carry + delta;
 
-      // Keep the last 2 chars in carry — that's enough to recognize "**", "__",
-      // "```" boundaries that might be split across deltas.
-      const safeUntil = Math.max(0, combined.length - 2);
+      // Only buffer the trailing characters if they look like the start of a
+      // markdown marker. The previous version always held back 2 chars, which
+      // delayed sentence-ending periods by a full delta — Aura would sit on
+      // un-flushed text waiting for punctuation that "never" arrived. Now a
+      // period reaches TTS immediately, the flush boundary fires on time, and
+      // audio playback starts without a stall.
+      let carrySize = 0;
+      for (let i = combined.length - 1; i >= 0 && carrySize < 3; i -= 1) {
+        if (isPotentialMarkerChar(combined[i])) {
+          carrySize = combined.length - i;
+        } else {
+          break;
+        }
+      }
+      const safeUntil = combined.length - carrySize;
       const head = combined.slice(0, safeUntil);
       carry = combined.slice(safeUntil);
 

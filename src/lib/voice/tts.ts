@@ -5,6 +5,13 @@ import { AudioPlayer } from "./audio-player";
 export interface TTSHandle {
   speak: (text: string) => void;
   flush: () => void;
+  /**
+   * Cut off currently-buffered synthesis and playback but keep the WebSocket
+   * open so the next turn doesn't pay the handshake cost. Used between turns
+   * and on user barge-in.
+   */
+  interrupt: () => void;
+  /** Full teardown — close the WS and AudioContext. */
   stop: () => Promise<void>;
   isPlaying: () => boolean;
 }
@@ -43,6 +50,15 @@ export async function startTTS(): Promise<TTSHandle> {
     flush: () => {
       if (ws.readyState !== 1) return;
       ws.send(JSON.stringify({ type: "Flush" }));
+    },
+    interrupt: () => {
+      // Clear Aura's server-side buffer so the next Speak starts cleanly.
+      // Then drop any audio still scheduled in the local player. The
+      // AudioContext stays alive — next turn can pushPCM immediately.
+      if (ws.readyState === 1) {
+        try { ws.send(JSON.stringify({ type: "Clear" })); } catch {}
+      }
+      try { player.interrupt(); } catch {}
     },
     stop: async () => {
       try { ws.close(); } catch {}
