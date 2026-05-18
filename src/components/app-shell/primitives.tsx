@@ -4,8 +4,72 @@
 // data language, hairline rules, custom typographic status glyphs rather
 // than Lucide icons inside the data layer. Use Lucide elsewhere (nav, chat),
 // but in lists/tables/properties, prefer these symbols.
+//
+// Editorial Pop layer (overlaid on top of the print foundation):
+// each entity type owns a vibrant hue. Color is structural — left-strips,
+// small markers, and pill labels — never decoration.
 
 import { cn } from "@/lib/utils";
+
+// -- Entity color palette ---------------------------------------------------
+// One vibrant hue per entity type. Read these as CSS variables so themes can
+// adjust if needed. Components should pull from ENTITY_COLOR_VAR, never hex.
+
+export type EntityKind =
+  | "task"
+  | "routine"
+  | "reminder"
+  | "activity"
+  | "plan"
+  | "insight";
+
+export const ENTITY_COLOR_VAR: Record<EntityKind, string> = {
+  task: "var(--entity-task)",
+  routine: "var(--entity-routine)",
+  reminder: "var(--entity-reminder)",
+  activity: "var(--entity-activity)",
+  plan: "var(--entity-plan)",
+  insight: "var(--entity-insight)",
+};
+
+export const ENTITY_LABEL: Record<EntityKind, string> = {
+  task: "task",
+  routine: "routine",
+  reminder: "reminder",
+  activity: "activity",
+  plan: "plan",
+  insight: "insight",
+};
+
+/** A small saturated square marker, used inline next to titles. */
+export function EntityMark({
+  kind,
+  className,
+}: { kind: EntityKind; className?: string }) {
+  return (
+    <span
+      className={cn("ru-entity-mark", className)}
+      style={{ ["--entity-color" as string]: ENTITY_COLOR_VAR[kind] }}
+      aria-hidden
+    />
+  );
+}
+
+/** Mono uppercase pill in the entity color. Sits in metadata rows. */
+export function EntityPill({
+  kind,
+  children,
+  className,
+}: { kind: EntityKind; children?: React.ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn("ru-entity-pill", className)}
+      style={{ ["--entity-color" as string]: ENTITY_COLOR_VAR[kind] }}
+    >
+      {children ?? ENTITY_LABEL[kind]}
+    </span>
+  );
+}
 
 // -- Status glyphs ----------------------------------------------------------
 // These are typographic, not icons. They live in Geist Mono and read as
@@ -144,7 +208,7 @@ export function Eyebrow({
   return (
     <div
       className={cn(
-        "mb-1 flex items-baseline gap-3 border-b border-[rgba(255,255,255,0.08)] pb-3",
+        "mb-1 flex items-baseline gap-3 border-b border-[var(--hairline)] pb-3",
         className,
       )}
     >
@@ -221,19 +285,44 @@ export function formatAgo(iso: string, nowMs: number = Date.now()): string {
 export function HairlineProgress({
   value,
   className,
-}: { value: number; className?: string }) {
+  tint,
+}: { value: number; className?: string; tint?: EntityKind }) {
   const pct = Math.max(0, Math.min(100, value));
+  const fill = tint ? ENTITY_COLOR_VAR[tint] : "var(--foreground)";
   return (
     <div
       className={cn(
-        "h-px w-full bg-[rgba(255,255,255,0.06)] overflow-hidden",
+        "h-px w-full bg-[var(--hairline-soft)] overflow-hidden",
         className,
       )}
       aria-hidden
     >
       <div
-        className="h-full bg-foreground/70"
-        style={{ width: `${pct}%` }}
+        className="h-full"
+        style={{ width: `${pct}%`, background: fill, opacity: tint ? 1 : 0.7 }}
+      />
+    </div>
+  );
+}
+
+/** A thicker progress bar used inside bento cards. Entity-tinted. */
+export function BentoProgress({
+  value,
+  tint,
+  className,
+}: { value: number; tint: EntityKind; className?: string }) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div
+      className={cn(
+        "h-[3px] w-full overflow-hidden rounded-full bg-[var(--hairline-soft)]",
+        className,
+      )}
+      aria-hidden
+    >
+      <div
+        className="h-full rounded-full transition-[width] duration-500"
+        style={{ width: `${pct}%`, background: ENTITY_COLOR_VAR[tint] }}
       />
     </div>
   );

@@ -207,10 +207,10 @@ export default async function SheetPage({
         <>
           {/* Sticky header */}
           <div
-            className="sticky top-12 z-20 grid items-center gap-4 bg-background px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 border-b border-[rgba(255,255,255,0.10)]"
+            className="sticky top-12 z-20 grid items-center gap-4 bg-background pl-5 pr-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 border-b border-[var(--hairline)]"
             style={{
               gridTemplateColumns:
-                "44px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
+                "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
             }}
           >
             <span className="text-muted-foreground/30">№</span>

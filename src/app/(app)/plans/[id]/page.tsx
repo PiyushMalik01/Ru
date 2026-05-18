@@ -134,7 +134,7 @@ export default async function PlanDetailPage({
 
           {/* Embedded sub-database — same table treatment as Sheet. */}
           <div>
-            <div className="mb-1 flex items-baseline gap-3 border-b border-[rgba(255,255,255,0.08)] pb-3">
+            <div className="mb-1 flex items-baseline gap-3 border-b border-[var(--hairline)] pb-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
                 items
               </span>
@@ -150,10 +150,10 @@ export default async function PlanDetailPage({
             ) : (
               <div className="-mx-4">
                 <div
-                  className="sticky top-12 z-10 grid items-center gap-4 bg-background px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 border-b border-[rgba(255,255,255,0.08)]"
+                  className="sticky top-12 z-10 grid items-center gap-4 bg-background pl-5 pr-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 border-b border-[var(--hairline)]"
                   style={{
                     gridTemplateColumns:
-                      "44px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
+                      "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
                   }}
                 >
                   <span className="text-muted-foreground/30">№</span>
@@ -178,7 +178,7 @@ export default async function PlanDetailPage({
 
           {/* Notes block — placeholder for now. */}
           <div>
-            <div className="mb-1 flex items-baseline gap-3 border-b border-[rgba(255,255,255,0.08)] pb-3">
+            <div className="mb-1 flex items-baseline gap-3 border-b border-[var(--hairline)] pb-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
                 notes
               </span>

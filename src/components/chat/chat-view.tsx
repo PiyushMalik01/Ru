@@ -87,11 +87,11 @@ function EmptyState() {
 
         <div className="mt-10 flex flex-col gap-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
           <div className="flex items-center gap-3">
-            <span className="h-px w-6 bg-[rgba(255,255,255,0.16)]" aria-hidden />
+            <span className="h-px w-6 bg-[var(--hairline-strong)]" aria-hidden />
             <span>type below, or hold the mic</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="h-px w-6 bg-[rgba(255,255,255,0.16)]" aria-hidden />
+            <span className="h-px w-6 bg-[var(--hairline-strong)]" aria-hidden />
             <span>tap voice-only to go hands-free</span>
           </div>
         </div>

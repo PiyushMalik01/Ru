@@ -43,12 +43,13 @@ export function ActivityCard({ data }: { data: ActivityCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
+      style={{ ["--entity-color" as string]: "var(--entity-activity)" }}
       className={cn(
-        "block w-full rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[rgba(255,255,255,0.16)]"
+        "ru-strip block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
+        "hover:border-[var(--hairline-strong)]"
       )}
     >
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className="flex items-center gap-3 pl-5 pr-4 py-3">
         <div className="min-w-0 flex-1 truncate text-[14px] font-medium leading-tight">
           {data.activity}
         </div>
@@ -78,7 +79,7 @@ export function ActivityCard({ data }: { data: ActivityCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border px-4 py-2.5">
+            <div className="border-t border-border pl-5 pr-4 py-2.5">
               <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>{data.category ?? "uncategorized"}</span>
                 <span>{data.timestamp ? new Date(data.timestamp).toLocaleString() : "—"}</span>

@@ -29,17 +29,18 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
 
   return (
     <div
+      style={{ ["--entity-color" as string]: "var(--entity-reminder)" }}
       className={cn(
-        "group block w-full rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[rgba(255,255,255,0.16)]"
+        "ru-strip group block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
+        "hover:border-[var(--hairline-strong)]"
       )}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+        className="flex w-full items-center gap-3 pl-5 pr-4 py-3.5 text-left"
       >
-        <Bell className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--entity-reminder)" }} aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-medium leading-tight">{data.title}</div>
         </div>
@@ -54,7 +55,7 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
       </button>
 
       {/* Hover action row */}
-      <div className="hidden border-t border-border px-4 py-2 group-hover:flex">
+      <div className="hidden border-t border-border pl-5 pr-4 py-2 group-hover:flex">
         <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-wide">
           <button
             type="button"
@@ -81,7 +82,7 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border px-4 py-2.5">
+            <div className="border-t border-border pl-5 pr-4 py-2.5">
               <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>{data.is_recurring ? "recurring" : "one-time"}</span>
                 <span>{data.remind_at ? new Date(data.remind_at).toLocaleString() : "—"}</span>

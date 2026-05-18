@@ -1,6 +1,6 @@
 // Read-only properties rail for a plan. Sits on the left of an asymmetric
 // layout, the same way Notion shows database properties — but typeset like
-// a magazine sidebar.
+// a magazine sidebar with ochre as the plan identity.
 
 import { HairlineProgress, formatAgo } from "@/components/app-shell/primitives";
 
@@ -15,7 +15,7 @@ interface Props {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="border-b border-[rgba(255,255,255,0.05)] pb-3 last:border-b-0">
+    <div className="border-b border-[var(--hairline-soft)] pb-3 last:border-b-0">
       <div className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground/60">
         {label}
       </div>
@@ -37,8 +37,15 @@ export function PlanProperties({
 
   return (
     <aside className="flex flex-col gap-3">
-      <div className="mb-2 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground/50">
-        properties
+      <div className="mb-1 flex items-baseline gap-2">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-[2px]"
+          style={{ background: "var(--entity-plan)" }}
+          aria-hidden
+        />
+        <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground/60">
+          plan · properties
+        </span>
       </div>
 
       <Field label="status">
@@ -55,10 +62,13 @@ export function PlanProperties({
             <span className="text-muted-foreground/40"> / </span>
             {itemCount.toString().padStart(2, "0")}
           </span>
-          <span className="ml-auto tabular-nums text-muted-foreground">{pct}%</span>
+          <span className="ml-auto font-display text-[22px] leading-none tabular-nums text-foreground">
+            {pct}
+            <span className="text-[12px] text-muted-foreground">%</span>
+          </span>
         </div>
         <div className="mt-2">
-          <HairlineProgress value={pct} />
+          <HairlineProgress value={pct} tint="plan" />
         </div>
       </Field>
 

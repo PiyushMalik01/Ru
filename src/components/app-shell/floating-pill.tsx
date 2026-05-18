@@ -150,8 +150,8 @@ export function FloatingPill() {
           className={cn(
             "flex items-center gap-2 rounded-full border bg-elevated px-5 py-1.5 transition-all",
             state === "listening"
-              ? "border-[rgba(255,255,255,0.12)]"
-              : "border-[rgba(255,255,255,0.08)]"
+              ? "border-[var(--hairline-strong)]"
+              : "border-[var(--hairline)]"
           )}
         >
           {state === "listening" ? (
@@ -199,7 +199,7 @@ export function FloatingPill() {
               "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
               voiceMode
                 ? "border-transparent bg-foreground text-background"
-                : "border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] text-muted-foreground"
+                : "border-[var(--hairline-soft)] bg-[var(--tint-hover)] text-muted-foreground"
             )}
           >
             <span
@@ -228,7 +228,7 @@ export function FloatingPill() {
           {isStreaming && (
             <div
               aria-hidden
-              className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[rgba(255,255,255,0.18)]"
+              className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[var(--hairline-strong)]"
             />
           )}
         </div>

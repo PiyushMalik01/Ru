@@ -46,7 +46,7 @@ export function SheetControls({
   const params = useSearchParams();
 
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 pb-3 border-b border-[rgba(255,255,255,0.08)]">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 pb-3 border-b border-[var(--hairline)]">
       {/* Filter chips — text only, lowercase mono. Active gets underline. */}
       <div className="flex items-baseline gap-4 font-mono text-[11px] uppercase tracking-[0.14em]">
         {FILTERS.map((f) => {

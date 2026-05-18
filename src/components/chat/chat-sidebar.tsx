@@ -200,12 +200,19 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
                         <Link
                           href={`/chat/${chat.id}`}
                           className={cn(
-                            "group/row flex items-center gap-1 rounded-md px-3 py-2 transition-colors",
+                            "group/row relative flex items-center gap-2 rounded-md px-3 py-2 transition-colors",
                             isActive
                               ? "bg-secondary text-foreground"
                               : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                           )}
                         >
+                          {isActive && (
+                            <span
+                              aria-hidden
+                              className="pointer-events-none absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-[1px]"
+                              style={{ background: "var(--entity-plan)" }}
+                            />
+                          )}
                           <span className="flex-1 truncate text-[13px]">{chat.title}</span>
                           <button
                             type="button"

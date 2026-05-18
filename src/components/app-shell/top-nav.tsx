@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "./theme-toggle";
 
 // The three primary surfaces of Ru. Settings sits on the far right.
 // Order matters: Today is the publication, Sheet is the database, Chat is the conversation.
@@ -23,9 +24,9 @@ export function TopNav() {
   return (
     <nav
       className={cn(
-        // A thin top frame, dark and matte. Border bottom is a true hairline.
+        // A thin top frame. Border bottom is a true theme-aware hairline.
         "sticky top-0 z-50 bg-background/90 backdrop-blur-md",
-        "border-b border-[rgba(255,255,255,0.06)]",
+        "border-b border-[var(--hairline-soft)]",
       )}
     >
       <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-5">
@@ -68,17 +69,20 @@ export function TopNav() {
           </div>
         </div>
 
-        <Link
-          href="/settings"
-          className={cn(
-            "text-[13px] transition-colors",
-            pathname === "/settings"
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Settings
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link
+            href="/settings"
+            className={cn(
+              "text-[13px] transition-colors",
+              pathname === "/settings"
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Settings
+          </Link>
+        </div>
       </div>
     </nav>
   );

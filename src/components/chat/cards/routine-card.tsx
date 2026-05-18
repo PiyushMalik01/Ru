@@ -21,16 +21,17 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
+      style={{ ["--entity-color" as string]: "var(--entity-routine)" }}
       className={cn(
-        "block w-full rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[rgba(255,255,255,0.16)]"
+        "ru-strip block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
+        "hover:border-[var(--hairline-strong)]"
       )}
     >
-      <div className="px-4 py-4">
+      <div className="pl-5 pr-4 py-4">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <span className="font-mono text-[34px] font-light leading-none tracking-tight tabular-nums">
+              <span className="font-display text-[40px] leading-none tracking-tight tabular-nums text-foreground">
                 {streak}
               </span>
               <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
@@ -62,8 +63,9 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
                   key={i}
                   className={cn(
                     "h-4 w-[3px] rounded-full",
-                    filled ? "bg-success" : "bg-[rgba(255,255,255,0.1)]"
+                    filled ? "" : "bg-[var(--hairline)]"
                   )}
+                  style={filled ? { background: "var(--entity-routine)" } : undefined}
                 />
               );
             })}
@@ -80,7 +82,7 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border px-4 py-2.5">
+            <div className="border-t border-border pl-5 pr-4 py-2.5">
               <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>{data.frequency ?? "—"}</span>
                 <span>this week · {weekFilled}/7</span>

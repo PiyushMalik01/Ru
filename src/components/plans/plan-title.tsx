@@ -49,7 +49,7 @@ export function PlanTitle({ id, initial }: { id: string; initial: string }) {
       }}
       maxLength={120}
       className={cn(
-        "w-full bg-transparent text-[36px] font-light leading-[1.1] tracking-[-0.022em] text-foreground focus:outline-none",
+        "font-display w-full bg-transparent text-[40px] leading-[1.06] tracking-[-0.022em] text-foreground focus:outline-none",
         pending && "opacity-60",
       )}
     />
@@ -57,9 +57,14 @@ export function PlanTitle({ id, initial }: { id: string; initial: string }) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="group block w-full text-left"
+      className="group flex w-full items-baseline gap-3 text-left"
     >
-      <h1 className="text-[36px] font-light leading-[1.1] tracking-[-0.022em] text-foreground transition-colors group-hover:text-foreground/95">
+      <span
+        className="inline-block h-5 w-2 shrink-0 translate-y-[-0.25em] rounded-[1px]"
+        style={{ background: "var(--entity-plan)" }}
+        aria-hidden
+      />
+      <h1 className="font-display text-[40px] leading-[1.06] tracking-[-0.022em] text-foreground transition-colors group-hover:text-foreground/95">
         {value}
       </h1>
     </button>

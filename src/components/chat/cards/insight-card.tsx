@@ -36,12 +36,13 @@ export function InsightCard({ data }: { data: InsightCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
+      style={{ ["--entity-color" as string]: "var(--entity-insight)" }}
       className={cn(
-        "block w-full rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[rgba(255,255,255,0.16)]"
+        "ru-strip block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
+        "hover:border-[var(--hairline-strong)]"
       )}
     >
-      <div className="px-4 py-4">
+      <div className="pl-5 pr-4 py-4">
         <InsightBody data={data} />
       </div>
 
@@ -54,7 +55,7 @@ export function InsightCard({ data }: { data: InsightCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border px-4 py-2.5">
+            <div className="border-t border-border pl-5 pr-4 py-2.5">
               <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>{labelFor(data.kind)}</span>
                 <span>{data.period ?? "—"}</span>
@@ -86,7 +87,7 @@ function InsightBody({ data }: { data: InsightCardData }) {
     return (
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">
-          <div className="font-mono text-[42px] font-light leading-none tracking-tight tabular-nums">
+          <div className="font-display text-[52px] leading-none tracking-tight tabular-nums text-foreground">
             {streak}
           </div>
           <div className="mt-2 truncate text-[14px] font-medium leading-tight">
@@ -108,7 +109,7 @@ function InsightBody({ data }: { data: InsightCardData }) {
     return (
       <div>
         <div className="flex items-baseline justify-between gap-4">
-          <div className="font-mono text-[42px] font-light leading-none tracking-tight tabular-nums">
+          <div className="font-display text-[52px] leading-none tracking-tight tabular-nums text-foreground">
             {pct}
             <span className="ml-1 text-[18px] text-muted-foreground">%</span>
           </div>
@@ -117,10 +118,10 @@ function InsightBody({ data }: { data: InsightCardData }) {
           </div>
         </div>
         <div className="mt-3 truncate text-[13px] text-muted-foreground">{label}</div>
-        <div className="mt-3 h-px w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
+        <div className="mt-3 h-px w-full overflow-hidden rounded-full bg-[var(--hairline)]">
           <div
-            className="h-px bg-success transition-all"
-            style={{ width: `${pct}%` }}
+            className="h-px transition-all"
+            style={{ width: `${pct}%`, background: "var(--entity-insight)" }}
             aria-hidden
           />
         </div>

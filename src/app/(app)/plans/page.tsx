@@ -69,8 +69,11 @@ export default async function PlansPage() {
             <Link
               key={w.id}
               href={`/plans/${w.id}`}
-              className="group grid items-baseline gap-4 border-b border-[rgba(255,255,255,0.05)] py-5 last:border-b-0"
-              style={{ gridTemplateColumns: "40px minmax(0,1fr) 96px" }}
+              className="ru-strip group grid items-baseline gap-4 border-b border-[var(--hairline-soft)] py-5 pl-5 pr-2 last:border-b-0 hover:bg-[var(--tint-hover)] transition-colors"
+              style={{
+                gridTemplateColumns: "40px minmax(0,1fr) 96px",
+                ["--entity-color" as string]: "var(--entity-plan)",
+              }}
             >
               <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground/35 select-none">
                 {(i + 1).toString().padStart(3, "0")}

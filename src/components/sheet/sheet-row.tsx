@@ -15,6 +15,7 @@ import {
   KindGlyph,
   StatusBadge,
   formatWhen,
+  ENTITY_COLOR_VAR,
   type ItemKind,
   type ItemStatus,
 } from "@/components/app-shell/primitives";
@@ -69,13 +70,14 @@ export function SheetRow({ row, nowMs }: Props) {
   return (
     <div
       className={cn(
-        "group grid items-center gap-4 px-4 transition-colors",
-        "border-b border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.025)]",
+        "ru-strip group grid items-center gap-4 pl-5 pr-4 transition-colors",
+        "border-b border-[var(--hairline-soft)] hover:bg-[var(--tint-hover)]",
       )}
       style={{
         gridTemplateColumns:
-          "44px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
+          "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
         minHeight: 48,
+        ["--entity-color" as string]: ENTITY_COLOR_VAR[row.kind as keyof typeof ENTITY_COLOR_VAR] ?? "transparent",
       }}
     >
       {/* 1. Marginalia row number — like a footnote mark in a printed page. */}

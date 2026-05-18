@@ -40,12 +40,13 @@ export function TaskCard({ data }: { data: TaskCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
+      style={{ ["--entity-color" as string]: "var(--entity-task)" }}
       className={cn(
-        "group block w-full rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[rgba(255,255,255,0.16)]"
+        "ru-strip group block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
+        "hover:border-[var(--hairline-strong)]"
       )}
     >
-      <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className="flex items-center gap-3 pl-5 pr-4 py-3.5">
         <span
           className={cn(
             "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -81,7 +82,7 @@ export function TaskCard({ data }: { data: TaskCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border px-4 py-2.5">
+            <div className="border-t border-border pl-5 pr-4 py-2.5">
               <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>{data.priority ?? "no priority"}</span>
                 <span>{completed ? "done" : "open"}</span>
