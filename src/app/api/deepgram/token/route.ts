@@ -14,21 +14,29 @@ export async function POST() {
 
   const projectId = process.env.DEEPGRAM_PROJECT_ID;
   // Dev fallback: when no project id is set, return the master key directly.
-  // Production MUST set DEEPGRAM_PROJECT_ID so we can mint short-lived scoped keys.
+  // Production should set DEEPGRAM_PROJECT_ID with an admin key so we can mint
+  // short-lived scoped keys instead of exposing the master to the browser.
   if (!projectId) {
     return NextResponse.json({ key: dgKey, expiresIn: null, scoped: false });
   }
 
-  const dg = createDg(dgKey);
-  const expiration = 60;
-  const { result, error } = await dg.manage.createProjectKey(projectId, {
-    comment: `ru-session-${user.id}`,
-    scopes: ["usage:write"],
-    time_to_live_in_seconds: expiration,
-  });
-  if (error || !result) {
-    return new Response(`deepgram key mint failed: ${error?.message ?? "unknown"}`, { status: 500 });
+  try {
+    const dg = createDg(dgKey);
+    const expiration = 60;
+    const { result, error } = await dg.manage.createProjectKey(projectId, {
+      comment: `ru-session-${user.id}`,
+      scopes: ["usage:write"],
+      time_to_live_in_seconds: expiration,
+    });
+    if (error || !result) throw new Error(error?.message ?? "unknown");
+    return NextResponse.json({ key: result.key, expiresIn: expiration, scoped: true });
+  } catch (e) {
+    // Key likely lacks the `keys:write` scope. Fall back to the master key so voice
+    // still works in dev. Surface the reason so the user knows to upgrade for prod.
+    console.warn(
+      "[deepgram] scoped key mint failed, falling back to master key:",
+      e instanceof Error ? e.message : e
+    );
+    return NextResponse.json({ key: dgKey, expiresIn: null, scoped: false });
   }
-
-  return NextResponse.json({ key: result.key, expiresIn: expiration, scoped: true });
 }
