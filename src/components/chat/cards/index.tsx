@@ -6,6 +6,7 @@ import { RoutineCard, type RoutineCardData } from "./routine-card";
 import { ActivityCard, type ActivityCardData } from "./activity-card";
 import { ReminderCard, type ReminderCardData } from "./reminder-card";
 import { InsightCard, type InsightCardData } from "./insight-card";
+import { TrackerCard, type TrackerCardData } from "./tracker-card";
 
 interface CardProps {
   kind: CardKind;
@@ -24,6 +25,8 @@ export function Card({ kind, data }: CardProps) {
       return <ReminderCard data={data as unknown as ReminderCardData} />;
     case "insight":
       return <InsightCard data={data as unknown as InsightCardData} />;
+    case "tracker":
+      return <TrackerCard data={data as unknown as TrackerCardData} />;
     default:
       return null;
   }

@@ -339,6 +339,75 @@ export type Database = {
         }
         Relationships: []
       }
+      trackers: {
+        Row: {
+          archived: boolean
+          created_at: string
+          description: string | null
+          display_config: Json
+          fields: Json
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          description?: string | null
+          display_config?: Json
+          fields?: Json
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          description?: string | null
+          display_config?: Json
+          fields?: Json
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tracker_entries: {
+        Row: {
+          created_at: string
+          entered_at: string
+          id: string
+          notes: string | null
+          source_message_id: string | null
+          tracker_id: string
+          user_id: string
+          values: Json
+        }
+        Insert: {
+          created_at?: string
+          entered_at?: string
+          id?: string
+          notes?: string | null
+          source_message_id?: string | null
+          tracker_id: string
+          user_id: string
+          values?: Json
+        }
+        Update: {
+          created_at?: string
+          entered_at?: string
+          id?: string
+          notes?: string | null
+          source_message_id?: string | null
+          tracker_id?: string
+          user_id?: string
+          values?: Json
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           completed_at: string | null

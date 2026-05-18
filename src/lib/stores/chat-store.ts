@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type CardKind = "task" | "routine" | "activity" | "reminder" | "insight";
+export type CardKind = "task" | "routine" | "activity" | "reminder" | "insight" | "tracker";
 
 export interface ChatCard {
   kind: CardKind;

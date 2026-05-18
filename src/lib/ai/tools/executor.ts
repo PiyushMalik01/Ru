@@ -13,6 +13,9 @@ import { modifyRoutine } from "./handlers/modify-routine";
 import { getRoutineHistory } from "./handlers/get-routine-history";
 import { openWorkspace } from "./handlers/open-workspace";
 import { closeWorkspace } from "./handlers/close-workspace";
+import { createTracker } from "./handlers/create-tracker";
+import { logTrackerEntry } from "./handlers/log-tracker-entry";
+import { updateTracker } from "./handlers/update-tracker";
 
 export interface ToolContext {
   supabase: SupabaseClient<Database>;
@@ -23,7 +26,7 @@ export interface ToolContext {
 export interface ToolOutcome {
   ok: boolean;
   message: string;
-  cardKind?: "task" | "routine" | "activity" | "reminder" | "insight";
+  cardKind?: "task" | "routine" | "activity" | "reminder" | "insight" | "tracker";
   card?: unknown;
 }
 
@@ -42,6 +45,9 @@ const HANDLERS: Record<string, Handler> = {
   get_routine_history: getRoutineHistory,
   open_workspace: openWorkspace,
   close_workspace: closeWorkspace,
+  create_tracker: createTracker,
+  log_tracker_entry: logTrackerEntry,
+  update_tracker: updateTracker,
 };
 
 export async function executeTool(

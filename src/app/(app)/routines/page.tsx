@@ -1,6 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchRoutinesWithToday, type RoutineWithToday } from "@/lib/queries/dashboard";
+import {
+  listTrackers,
+  fetchTrackerEntries,
+  computeStats,
+  primaryField,
+  type Tracker,
+} from "@/lib/queries/trackers";
 import { RoutineRow } from "@/components/dashboard/routine-row";
+import { TrackerListCard } from "@/components/trackers/tracker-list-card";
 
 type BucketKey = "morning" | "midday" | "afternoon" | "evening" | "anytime";
 
@@ -38,8 +46,26 @@ export default async function RoutinesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const routines: RoutineWithToday[] = user
-    ? await fetchRoutinesWithToday(supabase, user.id)
+  const [routines, trackers]: [RoutineWithToday[], Tracker[]] = user
+    ? await Promise.all([
+        fetchRoutinesWithToday(supabase, user.id),
+        listTrackers(supabase, user.id),
+      ])
+    : [[], []];
+
+  // For each tracker, fetch a small recent window for the sparkline + stats.
+  const trackerData = user
+    ? await Promise.all(
+        trackers.map(async (t) => {
+          const recent = await fetchTrackerEntries(supabase, user.id, t.id, { limit: 60 });
+          return {
+            tracker: t,
+            stats: computeStats(t, recent),
+            recent,
+            primary: primaryField(t),
+          };
+        }),
+      )
     : [];
 
   const grouped: Record<BucketKey, RoutineWithToday[]> = {
@@ -99,7 +125,7 @@ export default async function RoutinesPage() {
         )}
       </header>
 
-      {/* Buckets */}
+      {/* Routine buckets */}
       {totalActive > 0 && (
         <div className="space-y-10">
           {BUCKET_ORDER.map((key) => {
@@ -137,6 +163,50 @@ export default async function RoutinesPage() {
           })}
         </div>
       )}
+
+      {/* Trackers — quantitative logs over time, lives next to routines because
+          they're both "things I do regularly". A separate section so they
+          don't visually mix with the time-of-day routine grouping above. */}
+      <section className="space-y-5">
+        <div className="flex items-baseline justify-between gap-4 border-b border-[var(--hairline-soft)] pb-3">
+          <div>
+            <h2 className="font-display text-[28px] leading-[1.02] tracking-tight">
+              Trackers
+            </h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Quantitative logs — runs, workouts, anything you want to follow
+              over time.
+            </p>
+          </div>
+          {trackerData.length > 0 && (
+            <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
+              {trackerData.length.toString().padStart(2, "0")}
+            </span>
+          )}
+        </div>
+
+        {trackerData.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--hairline)] bg-[var(--secondary)]/30 px-6 py-7 text-[14px] text-muted-foreground">
+            None yet. Tell Ru what you want to track —{" "}
+            <span className="italic text-foreground">
+              &ldquo;track my runs with distance, time, and pace&rdquo;
+            </span>{" "}
+            — and a tracker will appear here.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+            {trackerData.map((t) => (
+              <TrackerListCard
+                key={t.tracker.id}
+                tracker={t.tracker}
+                stats={t.stats}
+                recent={t.recent}
+                primary={t.primary}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

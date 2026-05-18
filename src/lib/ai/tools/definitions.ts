@@ -189,6 +189,89 @@ export const TOOL_DEFINITIONS: NormalizedTool[] = [
       "Close the currently active workspace. Call when the user signals they're done building (e.g. 'looks good, save that'). After this, future tool calls won't be attached to a workspace until you open a new one.",
     parameters: { type: "object", properties: {} },
   },
+  {
+    name: "create_tracker",
+    description:
+      "Create a quantitative tracker the user wants to log over time (running, workouts, weight, mood, calories, sleep, etc.). Use this when the user asks you to TRACK something with specific parameters — don't just promise to log it. The tracker defines a small schema of fields; entries are logged separately with log_tracker_entry.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Short tracker name, e.g. 'Running' or 'Workout'." },
+        description: { type: "string", description: "Optional one-line context." },
+        fields: {
+          type: "array",
+          description: "Schema of columns the user will log. Provide 1-6 fields.",
+          items: {
+            type: "object",
+            properties: {
+              key: { type: "string", description: "Snake_case identifier, e.g. 'distance_km'." },
+              label: { type: "string", description: "Human label, e.g. 'Distance'." },
+              type: { type: "string", enum: ["number", "text", "duration"] },
+              unit: { type: "string", description: "Optional unit suffix (km, kg, min, etc.)." },
+            },
+            required: ["label", "type"],
+          },
+        },
+      },
+      required: ["name", "fields"],
+    },
+  },
+  {
+    name: "log_tracker_entry",
+    description:
+      "Log one entry against an existing tracker. Pass the tracker by name (fuzzy match) or id, and a values object keyed by the tracker's field keys/labels.",
+    parameters: {
+      type: "object",
+      properties: {
+        tracker: { type: "string", description: "Tracker name or id." },
+        values: {
+          type: "object",
+          description: "Field values, e.g. { distance_km: 5.2, time_min: 28 }.",
+          additionalProperties: true,
+        },
+        entered_at: { type: "string", description: "ISO 8601. Defaults to now." },
+        notes: { type: "string" },
+      },
+      required: ["tracker", "values"],
+    },
+  },
+  {
+    name: "update_tracker",
+    description:
+      "Mutate a tracker's structure. Use when the user asks to add/remove/rename a column, rename the tracker, change the chart type, or archive it.",
+    parameters: {
+      type: "object",
+      properties: {
+        tracker: { type: "string", description: "Tracker name or id." },
+        action: {
+          type: "string",
+          enum: [
+            "add_field",
+            "remove_field",
+            "rename_field",
+            "rename_tracker",
+            "set_chart_type",
+            "archive",
+          ],
+        },
+        field: {
+          type: "object",
+          description: "Only for add_field.",
+          properties: {
+            key: { type: "string" },
+            label: { type: "string" },
+            type: { type: "string", enum: ["number", "text", "duration"] },
+            unit: { type: "string" },
+          },
+        },
+        field_key: { type: "string", description: "For remove_field / rename_field." },
+        new_label: { type: "string", description: "For rename_field." },
+        new_name: { type: "string", description: "For rename_tracker." },
+        chart_type: { type: "string", enum: ["line", "bar", "area"], description: "For set_chart_type." },
+      },
+      required: ["tracker", "action"],
+    },
+  },
 ];
 
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name);
