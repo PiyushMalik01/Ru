@@ -13,7 +13,12 @@ export interface STTHandle {
 
 export interface STTCallbacks {
   onInterim: (text: string) => void;
+  /** Per-segment finalization (Deepgram fires on ~800ms pause). May fire multiple times in one utterance. */
   onFinal: (text: string) => void;
+  /** Fires when the user truly stops speaking (utterance_end_ms of silence). Use this to commit, not onFinal. */
+  onUtteranceEnd?: () => void;
+  /** Fires when voice activity is detected. Use this to interrupt Ru if she's still talking. */
+  onSpeechStarted?: () => void;
   onError: (msg: string) => void;
   /** Optional — fires the moment the socket is actually accepting audio. */
   onReady?: () => void;
@@ -23,9 +28,20 @@ export async function startSTT(callbacks: STTCallbacks): Promise<STTHandle> {
   // Kick off the slow async fetches in parallel — token mint and mic permission
   // typically each take 100-400ms. Doing them sequentially adds up; together
   // they only cost the slower of the two.
+  //
+  // Explicit echoCancellation/noiseSuppression matter when Ru's TTS is coming
+  // out of the speakers — without them the mic catches Ru's own voice and
+  // either submits her words as user input or barge-in interrupts itself.
   const [tokenRes, stream] = await Promise.all([
     fetch("/api/deepgram/token", { method: "POST" }),
-    navigator.mediaDevices.getUserMedia({ audio: true }),
+    navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    }),
   ]);
 
   if (!tokenRes.ok) {
@@ -41,8 +57,12 @@ export async function startSTT(callbacks: STTCallbacks): Promise<STTHandle> {
     smart_format: true,
     punctuate: true,
     interim_results: true,
-    endpointing: 800,
-    utterance_end_ms: 1200,
+    // Segment endpoint after ~600ms silence (snappy interim → final transition),
+    // but DON'T submit on every final — wait for UtteranceEnd which only fires
+    // after a longer continuous silence. This lets the user pause mid-sentence
+    // without the system thinking they're done talking.
+    endpointing: 600,
+    utterance_end_ms: 1500,
     vad_events: true,
     sample_rate: 16000,
     encoding: "linear16",
@@ -118,6 +138,14 @@ export async function startSTT(callbacks: STTCallbacks): Promise<STTHandle> {
       else callbacks.onInterim(t);
     }
   );
+
+  live.on(LiveTranscriptionEvents.UtteranceEnd, () => {
+    callbacks.onUtteranceEnd?.();
+  });
+
+  live.on(LiveTranscriptionEvents.SpeechStarted, () => {
+    callbacks.onSpeechStarted?.();
+  });
 
   live.on(LiveTranscriptionEvents.Error, (e: Error) => callbacks.onError(e.message));
 

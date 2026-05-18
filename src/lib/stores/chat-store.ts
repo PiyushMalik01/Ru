@@ -248,7 +248,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await stopTTS();
     abortController = new AbortController();
     let charsSinceFlush = 0;
-    const flushBoundary = /[,.!?;:\n]/;
+    // Flush ONLY on true sentence boundaries. Commas/colons cause audible
+    // segment breaks in Aura's stream — each Flush is a new synthesis chunk
+    // with its own prosody, so flushing mid-sentence makes Ru sound stuttery.
+    const flushBoundary = /[.!?\n]/;
 
     // Strip markdown from each delta before Aura speaks — otherwise it reads
     // "dot", "star", "hash" literally. Visual display still uses raw md.
@@ -265,7 +268,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           charsSinceFlush += spoken.length;
         }
         const hitPunct = spoken ? flushBoundary.test(spoken) : false;
-        if (force || hitPunct || charsSinceFlush >= 40) {
+        // Char-cap is a fallback for run-on text with no punctuation. Raised
+        // from 40 → 180 so we don't force-flush mid-sentence on average prose.
+        if (force || hitPunct || charsSinceFlush >= 180) {
           tts.flush();
           charsSinceFlush = 0;
         }

@@ -76,6 +76,14 @@ const ANCHORS: Record<string, Anchor[]> = {
  */
 const ASKHUD_ANCHOR: Anchor = { xPct: 30, yPct: 72, tail: "left" };
 
+/**
+ * Voice-conversation mode (on /chat) — Ru steps forward as the focal point.
+ * Positioned mid-right, above the bottom status pill, so the live transcript
+ * cloud reads naturally to the user's gaze and doesn't collide with the
+ * messages stream above.
+ */
+const VOICE_CONVO_ANCHOR: Anchor = { xPct: 78, yPct: 62, tail: "left" };
+
 function bucketFor(pathname: string): keyof typeof ANCHORS | null {
   if (pathname.startsWith("/settings")) return null;
   if (pathname.startsWith("/onboarding")) return null;
@@ -113,12 +121,20 @@ export function RuGhost() {
   const bucket = useMemo(() => bucketFor(pathname), [pathname]);
   const askHudOpen = useRuCompanion((s) => s.askHudOpen);
 
+  // Voice conversation mode (full-duplex hands-free on /chat) — Ru is the
+  // visual presence instead of an orb. We treat continuousVoice as the signal
+  // since voiceMode alone can be true while the user is just tapping the mic.
+  const continuousVoice = useChatStore((s) => s.continuousVoice);
+  const voiceConvoActive = continuousVoice && bucket === "chat";
+
   // Anchors are hijacked by the AskHud when it's open: Ru flies to its
-  // anchor and stays put until it closes.
+  // anchor and stays put until it closes. Voice convo takes priority over
+  // route-based anchors but yields to AskHud.
   const anchors = useMemo<Anchor[] | null>(() => {
     if (askHudOpen) return [ASKHUD_ANCHOR];
+    if (voiceConvoActive) return [VOICE_CONVO_ANCHOR];
     return bucket ? ANCHORS[bucket] : null;
-  }, [askHudOpen, bucket]);
+  }, [askHudOpen, voiceConvoActive, bucket]);
 
   const [anchorIdx, setAnchorIdx] = useState(0);
   const [colorIdx, setColorIdx] = useState(0);
@@ -126,7 +142,7 @@ export function RuGhost() {
 
   useEffect(() => {
     setAnchorIdx(0);
-  }, [bucket, askHudOpen]);
+  }, [bucket, askHudOpen, voiceConvoActive]);
 
   // Anchor rotation — every 16-28s. Skipped when only one anchor (chat, HUD open).
   useEffect(() => {
@@ -147,9 +163,11 @@ export function RuGhost() {
   }, []);
 
   // Depth cycle — default ↔ near ↔ default ↔ far ↔ phasing ↔ default ...
-  // Asymmetric timing so it doesn't feel like a loop.
+  // Asymmetric timing so it doesn't feel like a loop. During voice convo we
+  // pin to default + occasional near (no far, no phasing) so Ru stays clearly
+  // present while she's the conversation indicator.
   useEffect(() => {
-    const sequence: { state: DepthState; ms: number }[] = [
+    const fullSequence: { state: DepthState; ms: number }[] = [
       { state: "default", ms: 6_000 + Math.random() * 4_000 },
       { state: "near", ms: 2_400 + Math.random() * 1_200 },
       { state: "default", ms: 5_000 + Math.random() * 3_000 },
@@ -157,6 +175,11 @@ export function RuGhost() {
       { state: "default", ms: 4_000 + Math.random() * 3_000 },
       { state: "phasing", ms: 1_400 + Math.random() * 600 },
     ];
+    const voiceSequence: { state: DepthState; ms: number }[] = [
+      { state: "default", ms: 5_000 + Math.random() * 2_000 },
+      { state: "near", ms: 2_000 + Math.random() * 1_000 },
+    ];
+    const sequence = voiceConvoActive ? voiceSequence : fullSequence;
     let i = 0;
     let timer: ReturnType<typeof setTimeout>;
     const step = () => {
@@ -167,7 +190,7 @@ export function RuGhost() {
     };
     step();
     return () => clearTimeout(timer);
-  }, []);
+  }, [voiceConvoActive]);
 
   const expression = useRuCompanion((s) => s.expression);
   const said = useRuCompanion((s) => s.said);
@@ -179,19 +202,22 @@ export function RuGhost() {
     setHidden(!bucket);
   }, [bucket, setHidden]);
 
-  // Greeting on route change.
+  // Greeting on route change. Skipped during voice convo — VoiceConversation
+  // owns the speech bubble (it shows the live transcript).
   const lastGreetRoute = useRef<string | null>(null);
   useEffect(() => {
     if (!bucket) return;
+    if (voiceConvoActive) return;
     if (lastGreetRoute.current === pathname) return;
     lastGreetRoute.current = pathname;
     const line = pickGreeting(pathname);
     if (line) say(line, 4400);
-  }, [bucket, pathname, say]);
+  }, [bucket, pathname, voiceConvoActive, say]);
 
-  // Idle observations.
+  // Idle observations. Also skipped during voice convo for the same reason.
   useEffect(() => {
     if (!bucket) return;
+    if (voiceConvoActive) return;
     const wait = 28_000 + Math.random() * 22_000;
     const t = setTimeout(() => {
       const current = useRuCompanion.getState().said;
@@ -201,7 +227,7 @@ export function RuGhost() {
       }
     }, wait);
     return () => clearTimeout(t);
-  }, [bucket, pathname, anchorIdx]);
+  }, [bucket, pathname, anchorIdx, voiceConvoActive]);
 
   // ── Chat / voice reactivity ─────────────────────────────────────────
   // Ru reacts when the user sends a message or Ru herself streams a reply.
@@ -211,6 +237,11 @@ export function RuGhost() {
   const lastStatus = useRef<string>("idle");
 
   useEffect(() => {
+    // During voice convo VoiceConversation owns the expression — don't fight it.
+    if (voiceConvoActive) {
+      lastStatus.current = chatStatus;
+      return;
+    }
     if (chatStatus === "streaming" && lastStatus.current !== "streaming") {
       // User just sent — Ru reacts.
       react("thinking", 1800);
@@ -220,21 +251,23 @@ export function RuGhost() {
       react("wink", 900);
     }
     lastStatus.current = chatStatus;
-  }, [chatStatus, react]);
+  }, [chatStatus, voiceConvoActive, react]);
 
   useEffect(() => {
+    if (voiceConvoActive) return;
     if (voiceMode) {
       // Subtle: wink when voice mode turns on.
       react("wink", 1100);
     }
-  }, [voiceMode, react]);
+  }, [voiceMode, voiceConvoActive, react]);
 
   useEffect(() => {
+    if (voiceConvoActive) return;
     if (chatThinking === "tooling") {
       // Ru is firing a tool — surprised pop.
       react("surprised", 1100);
     }
-  }, [chatThinking, react]);
+  }, [chatThinking, voiceConvoActive, react]);
 
   if (!bucket || !anchors) return null;
 

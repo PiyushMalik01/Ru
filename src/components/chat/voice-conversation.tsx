@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { VoiceOrb, type OrbPhase } from "./voice-orb";
 import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
+import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // Phrases the user can say to end the conversation. Match case-insensitively
@@ -29,12 +30,23 @@ function isStopPhrase(text: string): boolean {
   return false;
 }
 
+type Phase = "listening" | "thinking" | "speaking" | "ready";
+
 /**
- * Anchored at the bottom of the screen (where the pill normally lives) so the
- * user can still see the streamed chat. Three big affordances:
- *   - the orb itself (tap to interrupt Ru mid-speech)
- *   - a left-side "Stop speaking" button when Ru is talking
- *   - an X close button to end the conversation entirely
+ * Full-duplex voice conversation. No big orb — the user explicitly asked Ru
+ * (the companion character) to be the visual presence instead. We:
+ *
+ *   1. Start STT on mount with echo-cancelled mic
+ *   2. Accumulate per-segment finals into a buffer
+ *   3. Commit on UtteranceEnd (true silence) — NOT on every is_final, which
+ *      fires on any 600ms pause and would chop the user's message in half
+ *   4. While the response streams, watch TTS playback. Only re-open the mic
+ *      after the chat is idle AND the audio buffer has been silent for 500ms
+ *      continuously (one false reading isn't enough — there are gaps between
+ *      synthesized chunks)
+ *   5. If the user starts speaking while Ru is mid-reply, barge in — abort the
+ *      stream so the user can take the floor
+ *   6. Drive Ru's face/speech via the companion store so she IS the indicator
  */
 export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const status = useChatStore((s) => s.status);
@@ -42,18 +54,40 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const sendText = useChatStore((s) => s.sendText);
   const abort = useChatStore((s) => s.abort);
 
+  const setRuExpression = useRuCompanion((s) => s.setExpression);
+  const ruClear = useRuCompanion((s) => s.clear);
+
   const [transcript, setTranscript] = useState("");
-  const [phase, setPhase] = useState<OrbPhase>("listening");
+  const [phase, setPhase] = useState<Phase>("listening");
 
   const sttRef = useRef<STTHandle | null>(null);
   const finalBufRef = useRef<string>("");
   const stoppingRef = useRef(false);
-  const ttsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopSTT = useCallback(() => {
     sttRef.current?.stop();
     sttRef.current = null;
   }, []);
+
+  const commitUtterance = useCallback(() => {
+    const text = finalBufRef.current.trim();
+    finalBufRef.current = "";
+    setTranscript("");
+    if (!text) return;
+
+    if (isStopPhrase(text)) {
+      stoppingRef.current = true;
+      stopSTT();
+      onClose();
+      return;
+    }
+
+    // Tear down STT before sending so we don't double-listen to Ru's reply.
+    stopSTT();
+    setPhase("thinking");
+    void sendText(text);
+  }, [onClose, sendText, stopSTT]);
 
   const startListening = useCallback(async () => {
     if (sttRef.current || stoppingRef.current) return;
@@ -66,22 +100,22 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
           setTranscript((finalBufRef.current + " " + text).trim());
         },
         onFinal: (text) => {
+          // Per-segment final. Accumulate into the buffer — don't submit yet.
+          // Deepgram fires this on any ~600ms pause, so a natural mid-sentence
+          // pause would otherwise truncate the user's message.
           finalBufRef.current = (finalBufRef.current + " " + text).trim();
           setTranscript(finalBufRef.current);
-
-          if (isStopPhrase(finalBufRef.current)) {
-            stoppingRef.current = true;
-            stopSTT();
-            onClose();
-            return;
+        },
+        onUtteranceEnd: () => {
+          // True end of speech (utterance_end_ms of continuous silence).
+          // THIS is the right signal to commit the message.
+          commitUtterance();
+        },
+        onSpeechStarted: () => {
+          // User started talking. If Ru is still mid-reply, barge in.
+          if (useChatStore.getState().status === "streaming" || isTTSPlaying()) {
+            abort();
           }
-
-          const toSend = finalBufRef.current;
-          finalBufRef.current = "";
-          setTranscript("");
-          stopSTT();
-          setPhase("thinking");
-          void sendText(toSend);
         },
         onError: (msg) => {
           console.error("stt error", msg);
@@ -91,69 +125,84 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     } catch (e) {
       console.error("stt start failed", e);
     }
-  }, [onClose, sendText, stopSTT]);
+  }, [abort, commitUtterance, stopSTT]);
 
+  // Boot STT on mount; tear everything down on unmount.
   useEffect(() => {
     void startListening();
     return () => {
       stoppingRef.current = true;
       stopSTT();
-      if (ttsPollRef.current) clearInterval(ttsPollRef.current);
+      if (restartTimerRef.current) clearInterval(restartTimerRef.current);
+      ruClear();
     };
-  }, [startListening, stopSTT]);
+  }, [startListening, stopSTT, ruClear]);
 
-  // Drive orb phase from chat state
+  // Phase ← chat state. Drives both the local indicator AND Ru's face.
   useEffect(() => {
     if (stoppingRef.current) return;
+    let next: Phase;
     if (status === "streaming") {
-      if (thinking === "speaking") setPhase("speaking");
-      else if (thinking === "tooling") setPhase("thinking");
-      else setPhase("thinking");
+      next = thinking === "speaking" ? "speaking" : "thinking";
     } else if (sttRef.current) {
-      setPhase("listening");
+      next = "listening";
     } else {
-      setPhase("ready");
+      next = "ready";
     }
-  }, [status, thinking]);
+    setPhase(next);
 
-  // After Ru finishes speaking, wait for audio playback to drain then re-open the mic
+    // Map phase → Ru face. "happy" while listening keeps her warm and open;
+    // "thinking" while processing; "wink" briefly when she finishes speaking
+    // (handled by the existing reactivity in ru-ghost).
+    if (next === "listening") setRuExpression("happy");
+    else if (next === "thinking") setRuExpression("thinking");
+    else if (next === "speaking") setRuExpression("happy");
+  }, [status, thinking, setRuExpression]);
+
+  // After Ru finishes speaking: wait for the audio buffer to be silent for
+  // 500ms CONTINUOUSLY, then re-open the mic. Single false readings happen
+  // in the gaps between synthesized chunks and would re-open too early.
   useEffect(() => {
     if (stoppingRef.current) return;
     if (status !== "idle") return;
     if (sttRef.current) return;
 
-    ttsPollRef.current = setInterval(() => {
-      if (!isTTSPlaying()) {
-        if (ttsPollRef.current) {
-          clearInterval(ttsPollRef.current);
-          ttsPollRef.current = null;
+    let silentSince: number | null = null;
+    restartTimerRef.current = setInterval(() => {
+      const playing = isTTSPlaying();
+      if (playing) {
+        silentSince = null;
+        return;
+      }
+      if (silentSince === null) silentSince = Date.now();
+      if (Date.now() - silentSince >= 500) {
+        if (restartTimerRef.current) {
+          clearInterval(restartTimerRef.current);
+          restartTimerRef.current = null;
         }
         void startListening();
       }
-    }, 200);
+    }, 80);
 
     return () => {
-      if (ttsPollRef.current) {
-        clearInterval(ttsPollRef.current);
-        ttsPollRef.current = null;
+      if (restartTimerRef.current) {
+        clearInterval(restartTimerRef.current);
+        restartTimerRef.current = null;
       }
     };
   }, [status, startListening]);
 
   function interruptRu() {
-    // Tap the orb (or hit Stop speaking) while Ru is talking → cut her off
-    // and re-open the mic so the user can take the floor.
     if (status === "streaming" || isTTSPlaying()) {
       abort();
     }
   }
 
   function handleClose() {
-    // Closing the conversation also stops audio. The previous version left
-    // Aura playing in the background — fixed.
     stoppingRef.current = true;
     stopSTT();
     abort();
+    ruClear();
     onClose();
   }
 
@@ -170,23 +219,35 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-4">
-      <div className="mx-auto flex max-w-3xl flex-col items-center">
-        {/* Live transcript bubble — floats above the orb so the user can see
-            what's being captured. Doesn't block the chat above it. */}
-        {(transcript || isSpeaking) && (
-          <div
-            className={cn(
-              "pointer-events-auto mb-3 max-w-[42ch] rounded-full border border-border bg-card/90 px-4 py-1.5 text-center text-[12px] backdrop-blur-sm",
-              transcript ? "text-foreground italic" : "text-muted-foreground"
-            )}
-          >
-            {transcript || "Ru is speaking — tap orb to interrupt"}
-          </div>
-        )}
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-2">
+        {/* Live transcript while user is talking. Single element so the text
+            updates in place — no remount flicker on every interim partial. */}
+        <AnimatePresence>
+          {transcript && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+              className="pointer-events-none max-w-[44ch] rounded-2xl border border-border bg-card/95 px-4 py-2 text-center text-[13px] italic leading-snug text-foreground shadow-md backdrop-blur-sm"
+              style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
+            >
+              {transcript}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Bottom control row */}
+        {/* Compact control row. No orb — Ru is the visual indicator now. */}
         <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-border bg-elevated/95 px-4 py-2.5 shadow-2xl backdrop-blur-sm">
-          {/* Stop speaking — only when Ru is talking */}
+          {/* Live phase indicator: tiny dot + label */}
+          <div className="flex items-center gap-2 pl-1 pr-1">
+            <PhaseDot phase={phase} />
+            <span className="min-w-[68px] font-mono text-[11px] uppercase tracking-[0.14em] text-foreground">
+              {statusLabel}
+            </span>
+          </div>
+
+          {/* Interrupt — only when Ru is speaking */}
           <button
             type="button"
             onClick={interruptRu}
@@ -197,25 +258,10 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
                 ? "bg-secondary text-foreground hover:bg-secondary/80"
                 : "cursor-not-allowed text-muted-foreground/40"
             )}
-            aria-label="Stop Ru speaking"
+            aria-label="Interrupt Ru"
           >
-            Stop speaking
+            Interrupt
           </button>
-
-          {/* Compact orb — also a tap target to interrupt */}
-          <button
-            type="button"
-            onClick={interruptRu}
-            aria-label={isSpeaking ? "Interrupt and listen" : "Voice active"}
-            className="flex shrink-0 items-center justify-center rounded-full"
-          >
-            <SmallOrb phase={phase} />
-          </button>
-
-          {/* Live status label */}
-          <span className="min-w-[80px] font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-            {statusLabel}
-          </span>
 
           {/* Close conversation */}
           <button
@@ -228,19 +274,32 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <p className="pointer-events-auto mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Say &ldquo;that&rsquo;s it&rdquo; to end · tap orb to interrupt
+        <p className="pointer-events-auto font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          Say &ldquo;that&rsquo;s it&rdquo; to end · just start talking to interrupt
         </p>
       </div>
     </div>
   );
 }
 
-/** Compact orb for the bottom dock. Same breathing rhythm as the big one. */
-function SmallOrb({ phase }: { phase: OrbPhase }) {
+/** Tiny phase dot — pulses while listening/thinking, solid when speaking. */
+function PhaseDot({ phase }: { phase: Phase }) {
+  const color =
+    phase === "listening"
+      ? "var(--entity-routine)"
+      : phase === "speaking"
+        ? "var(--entity-task)"
+        : phase === "thinking"
+          ? "var(--muted-foreground)"
+          : "var(--muted-foreground)";
   return (
-    <div className="relative flex h-[44px] w-[44px] items-center justify-center">
-      <VoiceOrb phase={phase} size={44} />
-    </div>
+    <span
+      className={cn(
+        "inline-block h-2 w-2 rounded-full",
+        (phase === "listening" || phase === "thinking") && "animate-pulse"
+      )}
+      style={{ backgroundColor: color }}
+      aria-hidden
+    />
   );
 }
