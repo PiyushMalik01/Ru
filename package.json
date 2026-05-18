@@ -13,7 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "@base-ui/react": "^1.4.1",
-    "@deepgram/sdk": "^5.2.0",
+    "@deepgram/sdk": "^3.13.0",
     "@google/genai": "^2.4.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
