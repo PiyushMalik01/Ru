@@ -17,13 +17,25 @@ export interface ChatMessage {
   streaming?: boolean;
 }
 
+// Phases the assistant cycles through during a turn — drives the loader UI.
+export type ThinkingPhase = "idle" | "thinking" | "tooling" | "speaking";
+
 interface ChatState {
   messages: ChatMessage[];
   status: "idle" | "streaming" | "error";
+  thinking: ThinkingPhase;
+  thinkingLabel: string | null;
   errorMessage: string | null;
   voiceMode: boolean;
+  // Continuous conversation: when on, after Ru finishes speaking we auto-resume
+  // listening so the user doesn't tap mic every turn. Active in voice-only mode.
+  continuousVoice: boolean;
+  hydrated: boolean;
+
+  hydrate: (messages: ChatMessage[]) => void;
   setMessages: (messages: ChatMessage[]) => void;
   setVoiceMode: (v: boolean) => void;
+  setContinuousVoice: (v: boolean) => void;
   sendText: (text: string) => Promise<void>;
   abort: () => void;
   reset: () => void;
@@ -31,9 +43,15 @@ interface ChatState {
 
 let abortController: AbortController | null = null;
 
-// Voice TTS handle, lazy-loaded
-let ttsHandle: { speak: (text: string) => void; flush: () => void; stop: () => Promise<void> } | null = null;
-async function getTTS() {
+type TTSHandleType = { speak: (text: string) => void; flush: () => void; stop: () => Promise<void>; isPlaying: () => boolean };
+let ttsHandle: TTSHandleType | null = null;
+
+// Exported for the VoiceConversation orb to know when Ru is still speaking
+// (so it can wait before re-opening the mic in continuous mode).
+export function isTTSPlaying(): boolean {
+  return ttsHandle?.isPlaying() ?? false;
+}
+async function getTTS(): Promise<TTSHandleType> {
   if (ttsHandle) return ttsHandle;
   const { startTTS } = await import("@/lib/voice/tts");
   ttsHandle = await startTTS();
@@ -46,36 +64,132 @@ async function stopTTS() {
   }
 }
 
+// ─── Typewriter buffer ────────────────────────────────────────────────────
+// Even when the model bursts a paragraph in one chunk, we render at a steady
+// pace so reading feels natural — like ChatGPT/Claude — instead of jolting.
+const CHARS_PER_FRAME = 3; // ~180 chars/sec at 60fps
+let tw: { messageId: string; pending: string } | null = null;
+let twRaf = 0;
+
+type Setter = (s: Partial<ChatState>) => void;
+type Getter = () => ChatState;
+
+function scheduleType(set: Setter, get: Getter) {
+  if (twRaf) return;
+  const step = () => {
+    twRaf = 0;
+    const slot = tw;
+    if (!slot || !slot.pending) return;
+
+    const take = Math.min(CHARS_PER_FRAME, slot.pending.length);
+    const chunk = slot.pending.slice(0, take);
+    slot.pending = slot.pending.slice(take);
+
+    const messages = get().messages.slice();
+    const last = messages[messages.length - 1];
+    if (last && last.id === slot.messageId) {
+      last.content += chunk;
+      set({ messages });
+    }
+
+    if (slot.pending.length > 0) {
+      twRaf = requestAnimationFrame(step);
+    } else if (!last?.streaming) {
+      tw = null;
+    }
+  };
+  twRaf = requestAnimationFrame(step);
+}
+
+function flushType(set: Setter, get: Getter) {
+  if (!tw?.pending) {
+    if (twRaf) { cancelAnimationFrame(twRaf); twRaf = 0; }
+    tw = null;
+    return;
+  }
+  const messages = get().messages.slice();
+  const last = messages[messages.length - 1];
+  if (last && last.id === tw.messageId) {
+    last.content += tw.pending;
+    set({ messages });
+  }
+  tw = null;
+  if (twRaf) { cancelAnimationFrame(twRaf); twRaf = 0; }
+}
+
+function humanizeToolName(name: string | undefined): string {
+  if (!name) return "Cooking";
+  const map: Record<string, string> = {
+    log_activity: "Logging",
+    create_task: "Creating task",
+    complete_task: "Completing task",
+    declare_routine: "Saving routine",
+    complete_routine: "Marking routine done",
+    create_reminder: "Setting reminder",
+    query_analytics: "Looking up your data",
+    modify_task: "Updating task",
+    modify_routine: "Updating routine",
+    get_routine_history: "Looking up history",
+  };
+  return map[name] ?? "Cooking";
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   status: "idle",
+  thinking: "idle",
+  thinkingLabel: null,
   errorMessage: null,
   voiceMode: false,
+  continuousVoice: false,
+  hydrated: false,
+
+  hydrate: (messages) => {
+    if (get().hydrated) return;
+    set({ messages, hydrated: true });
+  },
 
   setMessages: (messages) => set({ messages }),
+
   setVoiceMode: (v) => {
     if (v) {
-      // Pre-warm the Aura WebSocket so the first response audio comes back
-      // ~1s sooner instead of waiting for handshake + token mint after generation starts.
       getTTS().catch((e) => console.error("tts pre-warm failed", e));
     } else {
       stopTTS();
+      set({ continuousVoice: false });
     }
     set({ voiceMode: v });
   },
+
+  setContinuousVoice: (v) => set({ continuousVoice: v }),
 
   reset: () => {
     abortController?.abort();
     abortController = null;
     stopTTS();
-    set({ messages: [], status: "idle", errorMessage: null });
+    flushType(set as Setter, get);
+    set({
+      messages: [],
+      status: "idle",
+      thinking: "idle",
+      thinkingLabel: null,
+      errorMessage: null,
+    });
   },
 
   abort: () => {
     abortController?.abort();
     abortController = null;
     stopTTS();
-    set({ status: "idle" });
+    flushType(set as Setter, get);
+    const messages = get().messages.slice();
+    const last = messages[messages.length - 1];
+    if (last && last.streaming) {
+      last.streaming = false;
+      set({ messages });
+    }
+    set({ status: "idle", thinking: "idle", thinkingLabel: null });
   },
 
   sendText: async (text: string) => {
@@ -98,17 +212,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [...get().messages, userMsg, assistantMsg],
       status: "streaming",
+      thinking: "thinking",
+      thinkingLabel: null,
       errorMessage: null,
     });
 
-    // Stop any in-flight TTS before starting a new turn
-    await stopTTS();
+    tw = { messageId: assistantMsg.id, pending: "" };
 
+    await stopTTS();
     abortController = new AbortController();
-    // Stream every token directly to Aura — flush on punctuation (Aura uses these to
-    // pace prosody) or every ~40 chars to keep latency low without choking the queue.
-    // This is what makes Ru feel like a live conversation instead of a synth that
-    // waits for a full sentence before speaking.
     let charsSinceFlush = 0;
     const flushBoundary = /[,.!?;:\n]/;
 
@@ -139,8 +251,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
       if (!res.ok || !res.body) {
         const err = await res.text();
-        set({ status: "error", errorMessage: err || "request failed" });
-        const msgs = [...get().messages];
+        set({
+          status: "error",
+          errorMessage: err || "request failed",
+          thinking: "idle",
+          thinkingLabel: null,
+        });
+        const msgs = get().messages.slice();
         const last = msgs[msgs.length - 1];
         if (last) last.streaming = false;
         set({ messages: msgs });
@@ -160,30 +277,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (!line.startsWith("data: ")) continue;
           let event: { type: string; [key: string]: unknown };
           try { event = JSON.parse(line.slice(6)); } catch { continue; }
-          const msgs = [...get().messages];
-          const last = msgs[msgs.length - 1];
-          if (!last) continue;
+
           if (event.type === "text") {
             const delta = String(event.delta ?? "");
-            last.content += delta;
+            if (get().thinking !== "speaking") {
+              set({ thinking: "speaking", thinkingLabel: null });
+            }
+            if (tw) tw.pending += delta;
+            scheduleType(set as Setter, get);
             await speakIfVoice(delta);
+          } else if (event.type === "tool_call") {
+            const call = event.call as { name?: string } | undefined;
+            set({ thinking: "tooling", thinkingLabel: humanizeToolName(call?.name) });
           } else if (event.type === "tool_result" && event.cardKind) {
-            last.cards = [...last.cards, { kind: event.cardKind as CardKind, data: (event.card as Record<string, unknown>) ?? {} }];
+            const msgs = get().messages.slice();
+            const last = msgs[msgs.length - 1];
+            if (last) {
+              last.cards = [
+                ...last.cards,
+                {
+                  kind: event.cardKind as CardKind,
+                  data: (event.card as Record<string, unknown>) ?? {},
+                },
+              ];
+              set({ messages: msgs });
+            }
           } else if (event.type === "stream_end") {
-            last.streaming = false;
-            if (event.assistantMessageId) last.id = String(event.assistantMessageId);
-            await speakIfVoice("", true); // force flush remaining
+            flushType(set as Setter, get);
+            const msgs = get().messages.slice();
+            const last = msgs[msgs.length - 1];
+            if (last) {
+              last.streaming = false;
+              if (event.assistantMessageId) last.id = String(event.assistantMessageId);
+              set({ messages: msgs });
+            }
+            await speakIfVoice("", true);
           } else if (event.type === "error") {
             set({ status: "error", errorMessage: String(event.message ?? "stream error") });
           }
-          set({ messages: msgs });
         }
       }
-      set({ status: "idle" });
+      flushType(set as Setter, get);
+      set({ status: "idle", thinking: "idle", thinkingLabel: null });
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      set({ status: "error", errorMessage: (e as Error).message });
-      const msgs = [...get().messages];
+      set({
+        status: "error",
+        errorMessage: (e as Error).message,
+        thinking: "idle",
+        thinkingLabel: null,
+      });
+      flushType(set as Setter, get);
+      const msgs = get().messages.slice();
       const last = msgs[msgs.length - 1];
       if (last) last.streaming = false;
       set({ messages: msgs });

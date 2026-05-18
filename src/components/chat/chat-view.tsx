@@ -1,26 +1,45 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useChatStore } from "@/lib/stores/chat-store";
+import { useChatStore, type ChatMessage } from "@/lib/stores/chat-store";
 import { MessageList } from "./message-list";
+import { ThinkingIndicator } from "./thinking-indicator";
 
-export function ChatView() {
+export function ChatView({ initialMessages = [] }: { initialMessages?: ChatMessage[] }) {
   const messages = useChatStore((s) => s.messages);
   const status = useChatStore((s) => s.status);
+  const thinking = useChatStore((s) => s.thinking);
+  const thinkingLabel = useChatStore((s) => s.thinkingLabel);
+  const hydrate = useChatStore((s) => s.hydrate);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll when content changes (new message, streaming delta).
+  // Hydrate the store with server-rendered history on first mount.
+  useEffect(() => {
+    if (initialMessages.length > 0) hydrate(initialMessages);
+  }, [hydrate, initialMessages]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, status]);
+  }, [messages, status, thinking]);
 
-  if (messages.length === 0) {
+  const showLoader =
+    (thinking === "thinking" || thinking === "tooling") &&
+    // Only show as a standalone row while the assistant message is still empty.
+    messages[messages.length - 1]?.streaming &&
+    !messages[messages.length - 1]?.content;
+
+  if (messages.length === 0 && status !== "streaming") {
     return <EmptyState />;
   }
 
   return (
     <div className="w-full">
       <MessageList messages={messages} />
+      {showLoader && (
+        <div className="mt-4">
+          <ThinkingIndicator phase={thinking} label={thinkingLabel} />
+        </div>
+      )}
       <div ref={bottomRef} className="h-2" />
     </div>
   );

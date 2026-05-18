@@ -25,10 +25,19 @@ export async function startSTT(callbacks: STTCallbacks): Promise<STTHandle> {
     smart_format: true,
     punctuate: true,
     interim_results: true,
-    endpointing: 300,
+    // Wait 800ms of silence before emitting an "is_final" — gives the speaker
+    // time to breathe mid-sentence without being cut off.
+    endpointing: 800,
+    // utterance_end_ms forces a final when the user actually stops talking
+    // (separate from endpointing's per-token VAD). Matches the cadence of
+    // natural conversational pauses.
+    utterance_end_ms: 1200,
+    vad_events: true,
     sample_rate: 16000,
     encoding: "linear16",
     channels: 1,
+    // Nova-3 + filler-word removal makes transcripts cleaner for the AI prompt.
+    filler_words: false,
   } satisfies LiveSchema);
 
   const AudioContextClass: typeof AudioContext =

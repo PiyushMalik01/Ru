@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveProfile, completeOnboarding } from "@/app/onboarding/actions";
+import { TimezonePicker } from "./timezone-picker";
 
 type Step = "profile" | "ai";
 
@@ -88,16 +89,8 @@ export function OnboardingForm({ initialName, initialTimezone, hasAiProvider }: 
             />
             <Field
               label="Timezone"
-              hint="So reminders and times line up with your day."
-              input={
-                <input
-                  type="text"
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  placeholder="e.g. Asia/Kolkata"
-                  className="w-full bg-transparent font-mono text-[15px] text-foreground placeholder:text-[rgba(255,255,255,0.18)] focus:outline-none"
-                />
-              }
+              hint="Detected from your browser. Pick a different one if it's wrong."
+              input={<TimezonePicker value={timezone} onChange={setTimezone} />}
             />
           </div>
 

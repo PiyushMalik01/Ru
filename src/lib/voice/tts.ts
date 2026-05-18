@@ -6,6 +6,7 @@ export interface TTSHandle {
   speak: (text: string) => void;
   flush: () => void;
   stop: () => Promise<void>;
+  isPlaying: () => boolean;
 }
 
 // aura-2-thalia-en is Aura-2's warmest, most conversational voice.
@@ -47,5 +48,6 @@ export async function startTTS(): Promise<TTSHandle> {
       try { ws.close(); } catch {}
       await player.stop();
     },
+    isPlaying: () => player.playing,
   };
 }

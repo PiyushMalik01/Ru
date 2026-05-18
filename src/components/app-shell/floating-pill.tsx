@@ -5,12 +5,14 @@ import { Mic, Square, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
+import { VoiceConversation } from "@/components/chat/voice-conversation";
 
 type PillState = "idle" | "typing" | "listening";
 
 export function FloatingPill() {
   const [state, setState] = useState<PillState>("idle");
   const [input, setInput] = useState("");
+  const [orbOpen, setOrbOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const sttRef = useRef<STTHandle | null>(null);
   const finalBufRef = useRef<string>("");
@@ -20,6 +22,7 @@ export function FloatingPill() {
   const sendText = useChatStore((s) => s.sendText);
   const abort = useChatStore((s) => s.abort);
   const setVoiceMode = useChatStore((s) => s.setVoiceMode);
+  const setContinuousVoice = useChatStore((s) => s.setContinuousVoice);
 
   const isStreaming = status === "streaming";
 
@@ -44,10 +47,16 @@ export function FloatingPill() {
   );
 
   async function handleMicClick() {
+    // Voice-only mode → open the full conversation orb instead of single-shot mic.
+    if (voiceMode) {
+      setOrbOpen(true);
+      setContinuousVoice(true);
+      return;
+    }
+
     if (state === "listening") {
       stopSTT();
-      // If voice-only and we have buffered final text, send it
-      if (voiceMode && finalBufRef.current.trim()) {
+      if (finalBufRef.current.trim()) {
         submit(finalBufRef.current);
       }
       setState("idle");
@@ -210,6 +219,15 @@ export function FloatingPill() {
           />
         )}
       </div>
+
+      {orbOpen && (
+        <VoiceConversation
+          onClose={() => {
+            setOrbOpen(false);
+            setContinuousVoice(false);
+          }}
+        />
+      )}
     </div>
   );
 }
