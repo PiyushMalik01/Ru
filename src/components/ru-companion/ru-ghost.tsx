@@ -23,6 +23,7 @@ import { motion } from "framer-motion";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { RuFace } from "./ru-face";
+import { RuLimbs } from "./ru-limbs";
 import { RuSpeech } from "./ru-speech";
 import { pickGreeting, pickIdleLine } from "./messages";
 
@@ -272,7 +273,8 @@ export function RuGhost() {
         transition={{ duration: depth === "phasing" ? 0.4 : 1.4, ease: [0.22, 1, 0.36, 1] }}
         className="relative"
       >
-        {/* Drift — slow ellipse around the anchor */}
+        {/* Drift — slow ellipse around the anchor. Container is enlarged
+            beyond the body so limbs have room to stick out and wave. */}
         <motion.div
           animate={{
             x: [0, 12, -8, 6, 0, -10, 4, 0],
@@ -283,9 +285,14 @@ export function RuGhost() {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          className="relative h-[68px] w-[68px] md:h-[82px] md:w-[82px] lg:h-[92px] lg:w-[92px]"
+          className="relative h-[110px] w-[110px] md:h-[130px] md:w-[130px] lg:h-[146px] lg:w-[146px]"
         >
-          {/* Body — morphing blob, color cycles between pop pastels */}
+          {/* Limbs SVG — sits BEHIND the body so the body's solid fill clips
+              the shoulder/hip joints. Only the stubs poke out. */}
+          <RuLimbs />
+
+          {/* Body — morphing blob with face. Inset to ~62% of the container
+              so there's room around it for limbs to extend visibly. */}
           <motion.div
             animate={{
               borderRadius: [
@@ -303,7 +310,7 @@ export function RuGhost() {
               rotate: { duration: 9, repeat: Infinity, ease: "easeInOut" },
               backgroundColor: { duration: 2.6, ease: "easeInOut" },
             }}
-            className="absolute inset-0 flex items-center justify-center"
+            className="absolute left-1/2 top-1/2 flex h-[62%] w-[62%] -translate-x-1/2 -translate-y-1/2 items-center justify-center"
             style={{
               boxShadow:
                 "0 10px 30px -10px rgba(0,0,0,0.25), inset 0 -8px 16px rgba(0,0,0,0.06)",
