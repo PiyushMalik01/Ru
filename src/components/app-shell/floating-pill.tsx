@@ -1,30 +1,102 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Mic, Square, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { startSTT, type STTHandle } from "@/lib/voice/stt";
 
 type PillState = "idle" | "typing" | "listening";
 
 export function FloatingPill() {
   const [state, setState] = useState<PillState>("idle");
-  const [voiceOnly, setVoiceOnly] = useState(false);
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const sttRef = useRef<STTHandle | null>(null);
+  const finalBufRef = useRef<string>("");
 
-  function handleMicClick() {
+  const status = useChatStore((s) => s.status);
+  const voiceMode = useChatStore((s) => s.voiceMode);
+  const sendText = useChatStore((s) => s.sendText);
+  const abort = useChatStore((s) => s.abort);
+  const setVoiceMode = useChatStore((s) => s.setVoiceMode);
+
+  const isStreaming = status === "streaming";
+
+  const stopSTT = useCallback(() => {
+    sttRef.current?.stop();
+    sttRef.current = null;
+  }, []);
+
+  // Tear down on unmount
+  useEffect(() => () => stopSTT(), [stopSTT]);
+
+  const submit = useCallback(
+    (text: string) => {
+      const t = text.trim();
+      if (!t) return;
+      void sendText(t);
+      setInput("");
+      finalBufRef.current = "";
+      setState("idle");
+    },
+    [sendText]
+  );
+
+  async function handleMicClick() {
     if (state === "listening") {
+      stopSTT();
+      // If voice-only and we have buffered final text, send it
+      if (voiceMode && finalBufRef.current.trim()) {
+        submit(finalBufRef.current);
+      }
       setState("idle");
       return;
     }
-    setState("listening");
+
+    try {
+      setState("listening");
+      finalBufRef.current = "";
+      sttRef.current = await startSTT({
+        onInterim: (text) => {
+          // Interim replaces input (combined with any committed finals)
+          const combined = (finalBufRef.current + " " + text).trim();
+          setInput(combined);
+        },
+        onFinal: (text) => {
+          // Append final to buffer
+          finalBufRef.current = (finalBufRef.current + " " + text).trim();
+          setInput(finalBufRef.current);
+
+          // In voice-only mode, auto-submit on final
+          if (useChatStore.getState().voiceMode) {
+            const toSend = finalBufRef.current;
+            finalBufRef.current = "";
+            setInput("");
+            stopSTT();
+            setState("idle");
+            void useChatStore.getState().sendText(toSend);
+          }
+        },
+        onError: (msg) => {
+          console.error("stt error", msg);
+          stopSTT();
+          setState("idle");
+        },
+      });
+    } catch (e) {
+      console.error("stt failed to start", e);
+      stopSTT();
+      setState("idle");
+    }
   }
 
   function handleSubmit() {
-    if (!input.trim()) return;
-    // Will be wired to chat API in Plan 2
-    setInput("");
-    setState("idle");
+    if (isStreaming) {
+      abort();
+      return;
+    }
+    submit(input);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -34,9 +106,24 @@ export function FloatingPill() {
     }
   }
 
+  function toggleVoiceOnly() {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    if (!next) {
+      // Leaving voice-only: stop STT if running
+      if (state === "listening") {
+        stopSTT();
+        setState("idle");
+      }
+    }
+  }
+
+  const showStop = isStreaming;
+  const showSend = !showStop && state === "typing" && input.trim().length > 0;
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
-      <div className="w-full max-w-xl">
+      <div className="relative w-full max-w-xl">
         <div
           className={cn(
             "flex items-center gap-2 rounded-full border bg-elevated px-5 py-1.5 transition-all",
@@ -47,7 +134,7 @@ export function FloatingPill() {
         >
           {state === "listening" ? (
             <WaveformBars />
-          ) : voiceOnly ? (
+          ) : voiceMode ? (
             <button
               onClick={handleMicClick}
               className="flex-1 py-2 text-left text-sm text-muted-foreground"
@@ -65,24 +152,30 @@ export function FloatingPill() {
                 setState(e.target.value ? "typing" : "idle");
               }}
               onKeyDown={handleKeyDown}
+              disabled={isStreaming && false /* keep editable */}
               className="flex-1 bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
           )}
 
-          {state === "typing" && input.trim() && (
+          {(showSend || showStop) && (
             <button
               onClick={handleSubmit}
+              aria-label={showStop ? "Stop" : "Send"}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90"
             >
-              <Send className="h-3.5 w-3.5" />
+              {showStop ? (
+                <Square className="h-3 w-3" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
             </button>
           )}
 
           <button
-            onClick={() => setVoiceOnly(!voiceOnly)}
+            onClick={toggleVoiceOnly}
             className={cn(
               "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-              voiceOnly
+              voiceMode
                 ? "border-transparent bg-foreground text-background"
                 : "border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] text-muted-foreground"
             )}
@@ -90,7 +183,7 @@ export function FloatingPill() {
             <span
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
-                voiceOnly ? "bg-background" : "bg-muted-foreground"
+                voiceMode ? "bg-background" : "bg-muted-foreground"
               )}
             />
             Voice only
@@ -98,6 +191,7 @@ export function FloatingPill() {
 
           <button
             onClick={handleMicClick}
+            aria-label={state === "listening" ? "Stop listening" : "Start mic"}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90"
           >
             {state === "listening" ? (
@@ -107,6 +201,14 @@ export function FloatingPill() {
             )}
           </button>
         </div>
+
+        {/* Subtle 1px opacity-pulse line under the pill while streaming */}
+        {isStreaming && (
+          <div
+            aria-hidden
+            className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[rgba(255,255,255,0.18)]"
+          />
+        )}
       </div>
     </div>
   );

@@ -118,3 +118,28 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.025em;
   font-weight: 600;
 }
+
+@keyframes ru-caret-blink {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0; }
+}
+
+.ru-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: ru-caret-blink 1.05s ease-in-out infinite;
+  border-radius: 1px;
+}
+
+@keyframes ru-pill-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.ru-pill-pulse {
+  animation: ru-pill-pulse 1.6s ease-in-out infinite;
+}
