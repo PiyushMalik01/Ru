@@ -143,3 +143,56 @@ h1, h2, h3, h4, h5, h6 {
 .ru-pill-pulse {
   animation: ru-pill-pulse 1.6s ease-in-out infinite;
 }
+
+/* Scrollbars are hidden globally. Content still scrolls — the user
+   asked explicitly to never see scrollbars in workspace panels. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* A hairline rule with a thinner, more architectural feel than border-b. */
+.ru-rule {
+  background: linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0.04) 60%, transparent);
+  height: 1px;
+}
+
+/* Editorial drawn underline that animates in from the left. */
+.ru-link {
+  position: relative;
+  display: inline-block;
+}
+.ru-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -2px;
+  height: 1px;
+  background: currentColor;
+  transition: right 180ms ease-out;
+}
+.ru-link:hover::after {
+  right: 0;
+}
+
+/* Soft fade-to-black mask at the foot of a scroll region so the absence
+   of a scrollbar still hints at "more below". */
+.ru-fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 28px), transparent 100%);
+}
+
+/* The live-now marker — a thin live tick on the timeline. */
+@keyframes ru-now-tick {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.35; }
+}
+.ru-now-mark {
+  animation: ru-now-tick 2s ease-in-out infinite;
+}

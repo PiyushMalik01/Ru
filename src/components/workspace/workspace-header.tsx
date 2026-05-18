@@ -8,6 +8,7 @@ import {
   PanelRightClose,
   Check,
 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { WorkspaceSummary } from "@/lib/queries/workspace";
 import {
@@ -155,6 +156,14 @@ export function WorkspaceHeader({
               <>What&rsquo;s on for {weekdayLabel().toLowerCase()}.</>
             )}
           </p>
+          {currentWorkspace && (
+            <Link
+              href={`/plans/${currentWorkspace.id}`}
+              className="ru-link mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70 hover:text-foreground"
+            >
+              open as page ↗
+            </Link>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
