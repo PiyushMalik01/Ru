@@ -148,7 +148,9 @@ export function FloatingPill() {
         <div className="relative w-full max-w-xl">
         <div
           className={cn(
-            "flex items-center gap-2 rounded-full border bg-elevated px-5 py-1.5 transition-all",
+            "flex items-center gap-2 rounded-full border px-5 py-1.5 backdrop-blur-md transition-all",
+            "bg-[color:var(--card)]/85 shadow-[0_4px_24px_rgba(0,0,0,0.08)]",
+            "dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)]",
             state === "listening"
               ? "border-[var(--hairline-strong)]"
               : "border-[var(--hairline)]"
@@ -199,13 +201,13 @@ export function FloatingPill() {
               "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
               voiceMode
                 ? "border-transparent bg-foreground text-background"
-                : "border-[var(--hairline-soft)] bg-[var(--tint-hover)] text-muted-foreground"
+                : "border-[var(--hairline)] bg-[var(--secondary)] text-muted-foreground hover:text-foreground"
             )}
           >
             <span
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
-                voiceMode ? "bg-background" : "bg-muted-foreground"
+                voiceMode ? "bg-background" : "bg-[var(--entity-routine)]"
               )}
             />
             Voice only

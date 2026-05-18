@@ -4,7 +4,6 @@ import { fetchTodayBundle, listWorkspaces } from "@/lib/queries/workspace";
 import { fetchRoutinesWithToday } from "@/lib/queries/dashboard";
 import { composeStandfirst, firstNameFrom } from "@/lib/today-standfirst";
 import { NowMarker } from "@/components/app-shell/now-marker";
-import { RuMark } from "@/components/app-shell/ru-mark";
 import { Squiggle } from "@/components/app-shell/squiggle";
 import { BentoNow } from "@/components/today/bento-now";
 import { BentoStreak } from "@/components/today/bento-streak";
@@ -126,19 +125,15 @@ export default async function TodayPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 pt-8 pb-32">
-      {/* Greeting masthead — mascot on the left, weekday + live clock on the right.
-          Chunky, friendly, with personality. */}
+      {/* Greeting masthead — chunky display greeting on the left, weekday + live clock on the right. */}
       <header className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <RuMark size={40} />
-          <div>
-            <div className="font-display text-[20px] leading-none">
-              {greeting}
-              {firstName ? `, ${firstName}` : ""}.
-            </div>
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              {head.weekday} · {head.date}
-            </div>
+        <div>
+          <div className="font-display text-[22px] leading-none sm:text-[26px]">
+            {greeting}
+            {firstName ? `, ${firstName}` : ""}.
+          </div>
+          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            {head.weekday} · {head.date}
           </div>
         </div>
         <NowMarker />
@@ -195,10 +190,7 @@ export default async function TodayPage() {
 
       {/* Colophon — print spread footer. */}
       <footer className="mt-20 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-        <span className="inline-flex items-center gap-2">
-          <RuMark size={18} />
-          <span>ru. — daily</span>
-        </span>
+        <span>ru. — daily</span>
         <span>vol · {head.iso}</span>
       </footer>
     </div>
