@@ -13,7 +13,7 @@ export default async function SettingsPage() {
     : { connected: false as const };
 
   return (
-    <div className="space-y-10 py-2">
+    <div className="mx-auto w-full max-w-5xl space-y-10 px-4 pt-6 pb-24">
       <header className="max-w-xl">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           settings · ai connection

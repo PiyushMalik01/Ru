@@ -1,4 +1,5 @@
 import { ChatView } from "@/components/chat/chat-view";
+import { WorkspacePanel } from "@/components/workspace/workspace-panel";
 import { createClient } from "@/lib/supabase/server";
 import type { ChatMessage } from "@/lib/stores/chat-store";
 
@@ -26,5 +27,14 @@ export default async function ChatPage() {
       }));
   }
 
-  return <ChatView initialMessages={initialMessages} />;
+  return (
+    <div className="flex h-[calc(100vh-3rem)] w-full">
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-4 pt-6 pb-32">
+          <ChatView initialMessages={initialMessages} />
+        </div>
+      </div>
+      <WorkspacePanel />
+    </div>
+  );
 }

@@ -21,7 +21,7 @@ export default async function InsightsPage() {
   const sortedRoutines = [...data.routineStats].sort((a, b) => b.streak - a.streak);
 
   return (
-    <div className="space-y-16 py-2">
+    <div className="mx-auto w-full max-w-5xl space-y-16 px-4 pt-6 pb-24">
       {/* Header */}
       <header className="max-w-2xl">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
