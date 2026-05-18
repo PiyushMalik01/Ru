@@ -1,7 +1,10 @@
-// ACTIVE PLAN tile — ochre identity. Highlights the most recent workspace.
+// ACTIVE PLAN tile — full ochre tile, plan title in chunky Fraunces,
+// massive progress percent number.
 
+import { ArrowUpRight } from "lucide-react";
 import { BentoCard } from "./bento-card";
-import { BentoProgress } from "@/components/app-shell/primitives";
+import { Sticker } from "@/components/app-shell/sticker";
+import { Squiggle } from "@/components/app-shell/squiggle";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -24,37 +27,35 @@ export function BentoPlan({
   const pct = itemCount > 0 ? Math.round((doneCount / itemCount) * 100) : 0;
 
   return (
-    <BentoCard
-      tint="plan"
-      eyebrow="active plan"
-      caption={`${doneCount.toString().padStart(2, "0")} / ${itemCount.toString().padStart(2, "0")}`}
-      className={cn("min-h-[180px]", className)}
-      href={`/plans/${id}`}
-    >
-      <div className="flex h-full flex-col gap-3">
-        <div>
-          <h3 className="line-clamp-2 text-[17px] font-medium leading-tight text-foreground">
-            {title}
-          </h3>
-          {description ? (
-            <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground">
-              {description}
-            </p>
-          ) : null}
+    <BentoCard variant="plan" className={cn("min-h-[200px]", className)} href={`/plans/${id}`}>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <Sticker tilt={-2}>Active plan</Sticker>
+          <Sticker tilt={2} dark>
+            {doneCount}/{itemCount}
+          </Sticker>
         </div>
 
-        <div className="mt-auto">
-          <div className="flex items-baseline justify-between">
-            <span className="font-display text-[44px] leading-none tabular-nums text-foreground">
+        <h3 className="mt-4 line-clamp-2 font-display text-[28px] leading-[1.05] sm:text-[34px]">
+          {title}
+        </h3>
+
+        {description ? (
+          <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed opacity-75">
+            {description}
+          </p>
+        ) : null}
+
+        <div className="mt-auto pt-4">
+          <Squiggle className="mb-2 text-current/40" width={280} />
+          <div className="flex items-end justify-between">
+            <span className="font-display leading-[0.85] tabular-nums" style={{ fontSize: "clamp(48px, 6vw, 64px)" }}>
               {pct}
-              <span className="ml-0.5 text-[20px] text-muted-foreground">%</span>
+              <span className="ml-0.5 text-[24px] opacity-60">%</span>
             </span>
-            <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground">
-              complete
+            <span className="ru-pill-dark">
+              Open <ArrowUpRight className="h-3.5 w-3.5" />
             </span>
-          </div>
-          <div className="mt-3">
-            <BentoProgress value={pct} tint="plan" />
           </div>
         </div>
       </div>
@@ -64,19 +65,19 @@ export function BentoPlan({
 
 export function BentoPlanEmpty({ className }: { className?: string }) {
   return (
-    <BentoCard
-      tint="plan"
-      eyebrow="active plan"
-      className={cn("min-h-[180px]", className)}
-      href="/plans"
-    >
-      <div className="flex h-full flex-col justify-between gap-3">
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          You haven&apos;t started a plan yet. Plans hold the items that belong to
-          a bigger arc — a project, a trip, a goal.
-        </p>
-        <span className="self-start font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
-          <span className="ru-link">start one →</span>
+    <BentoCard variant="plan" className={cn("min-h-[200px]", className)} href="/plans">
+      <div className="flex h-full flex-col justify-between">
+        <Sticker tilt={-2}>Active plan</Sticker>
+        <div>
+          <h3 className="font-display text-[24px] leading-[1.05] sm:text-[28px]">
+            Nothing in flight.
+          </h3>
+          <p className="mt-2 text-[13px] leading-relaxed opacity-75">
+            Plans hold items that belong to a bigger arc. Tell Ru what you&rsquo;re building.
+          </p>
+        </div>
+        <span className="ru-pill-dark self-start">
+          Start a plan <ArrowUpRight className="h-3.5 w-3.5" />
         </span>
       </div>
     </BentoCard>

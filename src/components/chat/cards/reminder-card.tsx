@@ -24,54 +24,42 @@ function formatRemind(t?: string | null): string {
   return `${day} · ${time}`;
 }
 
+// Full coral tile, dark type. Bell glyph anchored top-left.
 export function ReminderCard({ data }: { data: ReminderCardData }) {
   const [open, setOpen] = useState(false);
 
   return (
     <div
-      style={{ ["--entity-color" as string]: "var(--entity-reminder)" }}
       className={cn(
-        "ru-strip group block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[var(--hairline-strong)]"
+        "group block w-full overflow-hidden rounded-2xl transition-transform",
+        "hover:-translate-y-0.5"
       )}
+      style={{
+        background: "var(--entity-reminder)",
+        color: "var(--entity-reminder-fg)",
+      }}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 pl-5 pr-4 py-3.5 text-left"
+        className="flex w-full items-center gap-3 px-5 py-4 text-left"
       >
-        <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--entity-reminder)" }} aria-hidden />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-medium leading-tight">{data.title}</div>
+        <Bell className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
+          reminder
+        </span>
+        <div className="min-w-0 flex-1 truncate text-[14.5px] font-medium leading-tight">
+          {data.title}
         </div>
         {data.is_recurring && (
-          <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+          <Repeat className="h-3.5 w-3.5 shrink-0 opacity-75" aria-hidden />
         )}
         {data.remind_at && (
-          <span className="shrink-0 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-85">
             {formatRemind(data.remind_at)}
           </span>
         )}
       </button>
-
-      {/* Hover action row */}
-      <div className="hidden border-t border-border pl-5 pr-4 py-2 group-hover:flex">
-        <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-wide">
-          <button
-            type="button"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            dismiss
-          </button>
-          <span className="text-[rgba(255,255,255,0.12)]">·</span>
-          <button
-            type="button"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            snooze 1h
-          </button>
-        </div>
-      </div>
 
       <AnimatePresence initial={false}>
         {open && (
@@ -82,11 +70,10 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border pl-5 pr-4 py-2.5">
-              <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span>{data.is_recurring ? "recurring" : "one-time"}</span>
-                <span>{data.remind_at ? new Date(data.remind_at).toLocaleString() : "—"}</span>
-              </div>
+            <div className="flex items-center gap-3 border-t border-black/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-80">
+              <span>{data.is_recurring ? "recurring" : "one-time"}</span>
+              <span className="opacity-50">·</span>
+              <span>{data.remind_at ? new Date(data.remind_at).toLocaleString() : "—"}</span>
             </div>
           </motion.div>
         )}

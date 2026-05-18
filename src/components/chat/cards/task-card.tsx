@@ -13,12 +13,6 @@ export interface TaskCardData {
   status?: "pending" | "completed" | string;
 }
 
-const priorityDot: Record<string, string> = {
-  low: "bg-success",
-  medium: "bg-warning",
-  high: "bg-error",
-};
-
 function formatDue(due?: string | null): string {
   if (!due) return "";
   const d = new Date(due);
@@ -31,47 +25,48 @@ function formatDue(due?: string | null): string {
   return `${day}, ${time}`;
 }
 
+// Full saturated cobalt tile. White type. Chunky rounded. The card IS the color.
 export function TaskCard({ data }: { data: TaskCardData }) {
   const [open, setOpen] = useState(false);
   const completed = data.status === "completed";
-  const dot = priorityDot[data.priority ?? "low"] ?? "bg-muted-foreground/50";
 
   return (
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
-      style={{ ["--entity-color" as string]: "var(--entity-task)" }}
       className={cn(
-        "ru-strip group block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[var(--hairline-strong)]"
+        "group block w-full overflow-hidden rounded-2xl text-left transition-transform",
+        "hover:-translate-y-0.5"
       )}
+      style={{
+        background: "var(--entity-task)",
+        color: "var(--entity-task-fg)",
+      }}
     >
-      <div className="flex items-center gap-3 pl-5 pr-4 py-3.5">
-        <span
-          className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-full",
-            completed ? "bg-muted-foreground/40" : dot
-          )}
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <div
-            className={cn(
-              "truncate text-[14px] font-medium leading-tight",
-              completed && "text-muted-foreground line-through"
-            )}
-          >
-            {data.title}
-          </div>
-        </div>
+      <div className="flex items-center gap-3 px-5 py-4">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+          task
+        </span>
+        <span className="opacity-40">·</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] opacity-80">
+          {data.priority ?? "no priority"}
+        </span>
         {data.due_at && (
-          <div className="shrink-0 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+          <span className="ml-auto font-mono text-[11px] tabular-nums opacity-85">
             {formatDue(data.due_at)}
-          </div>
+          </span>
         )}
-        {completed && (
-          <Check className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
-        )}
+      </div>
+      <div className="flex items-start gap-3 px-5 pb-4">
+        <div
+          className={cn(
+            "flex-1 text-[15px] font-medium leading-snug",
+            completed && "line-through opacity-60"
+          )}
+        >
+          {data.title}
+        </div>
+        {completed && <Check className="h-4 w-4 shrink-0 opacity-80" aria-hidden />}
       </div>
       <AnimatePresence initial={false}>
         {open && (
@@ -82,11 +77,8 @@ export function TaskCard({ data }: { data: TaskCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border pl-5 pr-4 py-2.5">
-              <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span>{data.priority ?? "no priority"}</span>
-                <span>{completed ? "done" : "open"}</span>
-              </div>
+            <div className="border-t border-white/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-75">
+              {completed ? "completed" : "open"} · click to {open ? "close" : "expand"}
             </div>
           </motion.div>
         )}

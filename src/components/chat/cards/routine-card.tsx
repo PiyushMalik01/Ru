@@ -12,6 +12,7 @@ export interface RoutineCardData {
   streak?: number;
 }
 
+// Full lime tile, BLACK type. Streak as the hero number in Fraunces.
 export function RoutineCard({ data }: { data: RoutineCardData }) {
   const [open, setOpen] = useState(false);
   const streak = Math.max(0, data.streak ?? 0);
@@ -21,55 +22,62 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
-      style={{ ["--entity-color" as string]: "var(--entity-routine)" }}
       className={cn(
-        "ru-strip block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[var(--hairline-strong)]"
+        "block w-full overflow-hidden rounded-2xl text-left transition-transform",
+        "hover:-translate-y-0.5"
       )}
+      style={{
+        background: "var(--entity-routine)",
+        color: "var(--entity-routine-fg)",
+      }}
     >
-      <div className="pl-5 pr-4 py-4">
-        <div className="flex items-end justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <span className="font-display text-[40px] leading-none tracking-tight tabular-nums text-foreground">
-                {streak}
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                {streak === 1 ? "day streak" : "day streak"}
-              </span>
-            </div>
-            <div className="mt-2.5 flex items-center gap-2">
-              <span className="truncate text-[14px] font-medium leading-tight">
-                {data.title}
-              </span>
-              {data.frequency && (
-                <span className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] lowercase tracking-wide text-muted-foreground">
-                  {data.frequency}
-                </span>
-              )}
-            </div>
-            {data.time_of_day && (
-              <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {data.time_of_day}
-              </div>
-            )}
-          </div>
+      <div className="flex items-center gap-2 px-5 pt-4">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
+          routine
+        </span>
+        {data.frequency && (
+          <>
+            <span className="opacity-40">·</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] opacity-80">
+              {data.frequency}
+            </span>
+          </>
+        )}
+        {data.time_of_day && (
+          <span className="ml-auto font-mono text-[11px] tabular-nums opacity-85">
+            {data.time_of_day}
+          </span>
+        )}
+      </div>
 
-          <div className="flex shrink-0 items-center gap-[3px]" aria-hidden>
-            {Array.from({ length: 7 }).map((_, i) => {
-              const filled = i < weekFilled;
-              return (
-                <span
-                  key={i}
-                  className={cn(
-                    "h-4 w-[3px] rounded-full",
-                    filled ? "" : "bg-[var(--hairline)]"
-                  )}
-                  style={filled ? { background: "var(--entity-routine)" } : undefined}
-                />
-              );
-            })}
+      <div className="flex items-end gap-4 px-5 pb-4 pt-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-[44px] leading-none tracking-tight tabular-nums">
+              {streak}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] opacity-75">
+              day streak
+            </span>
           </div>
+          <div className="mt-2 truncate text-[15px] font-medium leading-tight">
+            {data.title}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1" aria-hidden>
+          {Array.from({ length: 7 }).map((_, i) => {
+            const filled = i < weekFilled;
+            return (
+              <span
+                key={i}
+                className={cn(
+                  "h-5 w-[3px] rounded-full",
+                  filled ? "bg-black" : "bg-black/20"
+                )}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -82,11 +90,8 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border pl-5 pr-4 py-2.5">
-              <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span>{data.frequency ?? "—"}</span>
-                <span>this week · {weekFilled}/7</span>
-              </div>
+            <div className="border-t border-black/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-75">
+              <span>this week · {weekFilled}/7</span>
             </div>
           </motion.div>
         )}

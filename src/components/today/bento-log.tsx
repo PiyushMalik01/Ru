@@ -1,7 +1,8 @@
-// LOG tile — magenta activity identity. Recent activities, oldest at the
-// bottom. Lives at the right edge of the bottom bento row.
+// LOG tile — full magenta tile with cream type. Most recent activity is hero,
+// with smaller follow-ups underneath.
 
 import { BentoCard } from "./bento-card";
+import { Sticker } from "@/components/app-shell/sticker";
 import { formatAgo } from "@/components/app-shell/primitives";
 import { cn } from "@/lib/utils";
 
@@ -19,47 +20,52 @@ interface Props {
 }
 
 export function BentoLog({ items, nowMs, className }: Props) {
-  const shown = items.slice(0, 3);
+  const hero = items[0] ?? null;
+  const rest = items.slice(1, 3);
 
   return (
-    <BentoCard
-      tint="activity"
-      eyebrow="log"
-      caption={items.length.toString().padStart(2, "0")}
-      className={cn("min-h-[180px]", className)}
-      href="/sheet"
-    >
-      {shown.length === 0 ? (
-        <p className="py-8 text-center font-mono text-[12px] lowercase tracking-wide text-muted-foreground/70">
-          no activity logged today.
-        </p>
-      ) : (
-        <ul className="flex flex-col">
-          {shown.map((a, i) => (
-            <li
-              key={a.id}
-              className={cn(
-                "py-2.5",
-                i !== 0 && "border-t border-[var(--hairline-soft)]",
-              )}
-            >
-              <div className="flex items-baseline gap-2">
-                <span className="min-w-0 flex-1 truncate text-[13.5px] leading-tight">
-                  {a.activity}
-                </span>
-                <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground/70">
-                  {formatAgo(a.timestamp, nowMs)}
-                </span>
-              </div>
-              {a.category && (
-                <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/60">
-                  {a.category}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+    <BentoCard variant="activity" className={cn("min-h-[200px]", className)} href="/sheet">
+      <div className="flex h-full flex-col">
+        <div className="flex items-start justify-between">
+          <Sticker tilt={-2}>Log</Sticker>
+          <Sticker tilt={2} dark>
+            {items.length.toString().padStart(2, "0")} today
+          </Sticker>
+        </div>
+
+        {!hero ? (
+          <p className="my-auto text-center font-mono text-[12px] lowercase tracking-wide opacity-75">
+            nothing logged today.
+          </p>
+        ) : (
+          <div className="mt-auto">
+            <div className="font-display text-[26px] leading-[1.1] sm:text-[30px]">
+              {hero.activity}
+            </div>
+            <div className="mt-2 flex items-center gap-3 font-mono text-[10.5px] uppercase tracking-[0.16em] opacity-80">
+              <span>{hero.category || "—"}</span>
+              <span className="opacity-50">·</span>
+              <span>{formatAgo(hero.timestamp, nowMs)}</span>
+            </div>
+
+            {rest.length > 0 && (
+              <ul className="mt-4 space-y-1.5">
+                {rest.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-baseline justify-between text-[13px] opacity-85"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{a.activity}</span>
+                    <span className="ml-3 shrink-0 font-mono text-[10px] tabular-nums opacity-70">
+                      {formatAgo(a.timestamp, nowMs)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
     </BentoCard>
   );
 }

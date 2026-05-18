@@ -1,6 +1,7 @@
-// THIS WEEK tile — teal insight identity. A big mono "12" of work items.
+// THIS WEEK tile — full teal background, big mono "12" hero.
 
 import { BentoCard } from "./bento-card";
+import { Sticker } from "@/components/app-shell/sticker";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -12,38 +13,30 @@ interface Props {
 
 export function BentoWeek({ count, taskCount, routineCount, className }: Props) {
   return (
-    <BentoCard
-      tint="insight"
-      eyebrow="this week"
-      caption="open"
-      className={cn("min-h-[180px]", className)}
-      href="/sheet"
-    >
-      <div className="flex h-full flex-col justify-between gap-3">
-        <div className="font-display text-[88px] leading-[0.85] tracking-[-0.04em] text-foreground sm:text-[104px]">
-          {count}
+    <BentoCard variant="insight" className={cn("min-h-[180px]", className)} href="/sheet">
+      <div className="flex h-full flex-col">
+        <div className="flex items-start justify-between">
+          <Sticker tilt={-2}>This week</Sticker>
+          <Sticker tilt={2} dark>
+            open
+          </Sticker>
         </div>
-        <div className="flex flex-col gap-2 font-mono text-[11px] uppercase tracking-[0.14em]">
-          <div className="flex items-center gap-2">
-            <span
-              className="h-2 w-2 rounded-[1px]"
-              style={{ background: "var(--entity-task)" }}
-              aria-hidden
-            />
-            <span className="text-muted-foreground">tasks</span>
-            <span className="ml-auto tabular-nums text-foreground">
-              {taskCount.toString().padStart(2, "0")}
-            </span>
+
+        <div className="mt-auto">
+          <div
+            className="font-display leading-[0.82] tracking-[-0.04em]"
+            style={{ fontSize: "clamp(96px, 12vw, 128px)" }}
+          >
+            {count}
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="h-2 w-2 rounded-[1px]"
-              style={{ background: "var(--entity-routine)" }}
-              aria-hidden
-            />
-            <span className="text-muted-foreground">routines</span>
-            <span className="ml-auto tabular-nums text-foreground">
-              {routineCount.toString().padStart(2, "0")}
+
+          <div className="mt-5 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.16em] opacity-90">
+            <span>
+              {taskCount.toString().padStart(2, "0")} tasks
+            </span>
+            <span className="opacity-40">·</span>
+            <span>
+              {routineCount.toString().padStart(2, "0")} routines
             </span>
           </div>
         </div>

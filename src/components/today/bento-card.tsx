@@ -1,28 +1,66 @@
-// Bento tile — the structural unit of /today.
+// Bento tile — v2: full saturated tile backgrounds.
 //
-// Each tile carries an entity color identity expressed as a 4px left-strip.
-// The card itself is flat — bg-card, hairline frame, generous padding. The
-// strip is the only chromatic element; everything else (titles, numbers,
-// counters) renders in foreground / muted tokens so the color hits hard.
+// Each tile picks one variant. Variants control both the background color
+// AND the foreground text color so contrast is automatic. Type inside the
+// tile inherits the chosen foreground; opacity utilities (text-current/60)
+// give muted captions without leaving the palette.
 //
-// Hover lifts the tile 1px and widens the strip 4→6px in 150ms. Add
-// `static` to disable the lift (use on non-interactive tiles).
+// Variants:
+//   task      → cobalt bg, white type
+//   routine   → lime bg, black type
+//   reminder  → coral bg, dark type
+//   activity  → magenta bg, white type
+//   plan      → ochre bg, dark type
+//   insight   → teal bg, dark type
+//   charcoal  → near-black bg, cream type (for variety / heroes)
+//   cream     → cream/white bg, dark type (neutral breathing-room tile)
+//
+// Hover lifts the tile 2px with a soft shadow. Mark `staticTile` to disable.
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ENTITY_COLOR_VAR, type EntityKind } from "@/components/app-shell/primitives";
+
+export type BentoVariant =
+  | "task"
+  | "routine"
+  | "reminder"
+  | "activity"
+  | "plan"
+  | "insight"
+  | "charcoal"
+  | "cream";
+
+const VARIANT_BG: Record<BentoVariant, string> = {
+  task:     "var(--entity-task)",
+  routine:  "var(--entity-routine)",
+  reminder: "var(--entity-reminder)",
+  activity: "var(--entity-activity)",
+  plan:     "var(--entity-plan)",
+  insight:  "var(--entity-insight)",
+  charcoal: "var(--entity-charcoal)",
+  cream:    "var(--card)",
+};
+
+const VARIANT_FG: Record<BentoVariant, string> = {
+  task:     "var(--entity-task-fg)",
+  routine:  "var(--entity-routine-fg)",
+  reminder: "var(--entity-reminder-fg)",
+  activity: "var(--entity-activity-fg)",
+  plan:     "var(--entity-plan-fg)",
+  insight:  "var(--entity-insight-fg)",
+  charcoal: "var(--entity-charcoal-fg)",
+  cream:    "var(--card-foreground)",
+};
 
 interface BaseProps {
-  tint: EntityKind;
-  /** Small uppercase mono label at top-left, e.g. "now", "streak". */
-  eyebrow?: string;
-  /** Optional right-aligned mono caption in the header (e.g. count, status). */
-  caption?: React.ReactNode;
-  /** Tailwind grid placement classes — col-span / row-span etc. */
+  variant: BentoVariant;
+  /** Tailwind grid placement classes (col-span / row-span). */
   className?: string;
+  /** Optional small uppercase mono eyebrow at the top of the tile. */
+  eyebrow?: string;
   /** Inner content. */
   children: React.ReactNode;
-  /** Disable hover-lift (for purely informational, non-clickable tiles). */
+  /** Disable hover lift (use for non-interactive informational tiles). */
   staticTile?: boolean;
 }
 
@@ -37,32 +75,21 @@ interface AsDiv extends BaseProps {
 type Props = AsLink | AsDiv;
 
 export function BentoCard(props: Props) {
-  const { tint, eyebrow, caption, className, children, staticTile } = props;
-  const style = { ["--bento-color" as string]: ENTITY_COLOR_VAR[tint] };
+  const { variant, className, eyebrow, children, staticTile } = props;
+  const style = {
+    ["--bento-bg" as string]: VARIANT_BG[variant],
+    ["--bento-fg" as string]: VARIANT_FG[variant],
+  };
 
   const inner = (
-    <>
-      {(eyebrow || caption) && (
-        <div className="flex items-baseline justify-between gap-3 pl-5 pr-5 pt-4">
-          {eyebrow ? (
-            <span
-              className="font-mono text-[10px] uppercase tracking-[0.18em]"
-              style={{ color: ENTITY_COLOR_VAR[tint] }}
-            >
-              {eyebrow}
-            </span>
-          ) : (
-            <span />
-          )}
-          {caption ? (
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-              {caption}
-            </span>
-          ) : null}
+    <div className="flex h-full flex-col p-6">
+      {eyebrow && (
+        <div className="mb-4 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+          {eyebrow}
         </div>
       )}
-      <div className="px-5 pb-5 pt-2">{children}</div>
-    </>
+      <div className="flex-1">{children}</div>
+    </div>
   );
 
   if ("href" in props && props.href) {
@@ -70,7 +97,7 @@ export function BentoCard(props: Props) {
       <Link
         href={props.href}
         data-static={staticTile ? "true" : undefined}
-        className={cn("ru-bento flex flex-col group", className)}
+        className={cn("ru-bento group block", className)}
         style={style}
       >
         {inner}
@@ -81,7 +108,7 @@ export function BentoCard(props: Props) {
   return (
     <div
       data-static={staticTile ? "true" : undefined}
-      className={cn("ru-bento flex flex-col", className)}
+      className={cn("ru-bento", className)}
       style={style}
     >
       {inner}

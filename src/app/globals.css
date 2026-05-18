@@ -66,21 +66,21 @@
   --radius-pill: 99px;
 }
 
-/* ---------- LIGHT — warm cream editorial ---------- */
+/* ---------- LIGHT — warm cream, playful ---------- */
 :root {
-  --background: #fafaf7;
+  --background: #f5f0e6;   /* warm cream page — not sterile white */
   --foreground: #1a1a18;
-  --card: #f5f3ee;
+  --card: #ffffff;         /* default neutral tile when no entity color */
   --card-foreground: #1a1a18;
-  --popover: #f5f3ee;
+  --popover: #ffffff;
   --popover-foreground: #1a1a18;
   --primary: #1a1a18;
-  --primary-foreground: #fafaf7;
-  --secondary: #ede9e0;
+  --primary-foreground: #f5f0e6;
+  --secondary: #ede7d8;
   --secondary-foreground: #1a1a18;
-  --muted: #ede9e0;
+  --muted: #ede7d8;
   --muted-foreground: #6b6a64;
-  --accent: #e8e3d6;
+  --accent: #e3dcc8;
   --accent-foreground: #1a1a18;
   --destructive: #dc2626;
   --border: rgba(0, 0, 0, 0.08);
@@ -91,89 +91,104 @@
   --chart-3: #6b6a64;
   --chart-4: #9a9890;
   --chart-5: #c7c3b6;
-  --radius: 0.625rem;
-  --sidebar: #f5f3ee;
+  --radius: 1.25rem;       /* default 20px — chunky */
+  --sidebar: #ede7d8;
   --sidebar-foreground: #1a1a18;
   --sidebar-primary: #1a1a18;
-  --sidebar-primary-foreground: #fafaf7;
-  --sidebar-accent: #ede9e0;
+  --sidebar-primary-foreground: #f5f0e6;
+  --sidebar-accent: #e3dcc8;
   --sidebar-accent-foreground: #1a1a18;
   --sidebar-border: rgba(0, 0, 0, 0.06);
   --sidebar-ring: #9a9890;
   --success: #16a34a;
   --warning: #d97706;
   --error: #dc2626;
-  --surface: #f5f3ee;
-  --elevated: #e8e3d6;
+  --surface: #ffffff;
+  --elevated: #e3dcc8;
 
-  /* Theme-aware hairline tokens (light) */
   --hairline: rgba(0, 0, 0, 0.08);
   --hairline-soft: rgba(0, 0, 0, 0.05);
   --hairline-strong: rgba(0, 0, 0, 0.14);
   --tint-hover: rgba(0, 0, 0, 0.03);
 
-  /* Entity colors — saturated hues that read well on both themes.
-     Identical between light/dark to keep entity identity rock-solid. */
-  --entity-task: #2563eb;      /* cobalt */
-  --entity-routine: #84cc16;   /* acid lime */
-  --entity-reminder: #f97316;  /* coral */
-  --entity-activity: #db2777;  /* hot magenta */
-  --entity-plan: #ca8a04;      /* warm ochre */
-  --entity-insight: #0d9488;   /* deep teal */
+  /* Saturated entity colors — used as FULL TILE BACKGROUNDS, not edge strips.
+     Each one has a paired contrast foreground for legible type. */
+  --entity-task: #2563eb;          /* cobalt */
+  --entity-task-fg: #ffffff;
+  --entity-routine: #bef264;       /* pastel lime — paired with black */
+  --entity-routine-fg: #0a0a08;
+  --entity-reminder: #fb923c;      /* warm coral */
+  --entity-reminder-fg: #1a1a18;
+  --entity-activity: #ec4899;      /* hot pink */
+  --entity-activity-fg: #ffffff;
+  --entity-plan: #fbbf24;          /* saffron / warm ochre */
+  --entity-plan-fg: #1a1a18;
+  --entity-insight: #2dd4bf;       /* bright teal */
+  --entity-insight-fg: #0a0a08;
+  --entity-charcoal: #0a0a0c;      /* dark tile for variety */
+  --entity-charcoal-fg: #f5f0e6;
 }
 
-/* ---------- DARK — warm charcoal ---------- */
+/* ---------- DARK — warm plum-charcoal, playful ---------- */
 .dark {
-  --background: #0a0a0c;
-  --foreground: #fafafa;
-  --card: #141416;
-  --card-foreground: #fafafa;
-  --popover: #141416;
-  --popover-foreground: #fafafa;
-  --primary: #fafafa;
-  --primary-foreground: #0a0a0c;
-  --secondary: #1c1c1f;
-  --secondary-foreground: #fafafa;
-  --muted: #1c1c1f;
-  --muted-foreground: #a1a1aa;
-  --accent: #232328;
-  --accent-foreground: #fafafa;
+  --background: #161320;     /* warm plum-tinted dark — not sterile black */
+  --foreground: #f6f4ea;
+  --card: #1f1b2e;
+  --card-foreground: #f6f4ea;
+  --popover: #1f1b2e;
+  --popover-foreground: #f6f4ea;
+  --primary: #f6f4ea;
+  --primary-foreground: #161320;
+  --secondary: #28233a;
+  --secondary-foreground: #f6f4ea;
+  --muted: #28233a;
+  --muted-foreground: #b6b0c0;
+  --accent: #322c47;
+  --accent-foreground: #f6f4ea;
   --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.09);
   --input: rgba(255, 255, 255, 0.06);
-  --ring: #52525b;
+  --ring: #6b6585;
   --chart-1: #22c55e;
   --chart-2: #f59e0b;
   --chart-3: #a1a1aa;
   --chart-4: #52525b;
   --chart-5: #3f3f46;
-  --sidebar: #141416;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #fafafa;
-  --sidebar-primary-foreground: #0a0a0c;
-  --sidebar-accent: #1c1c1f;
-  --sidebar-accent-foreground: #fafafa;
+  --sidebar: #1f1b2e;
+  --sidebar-foreground: #f6f4ea;
+  --sidebar-primary: #f6f4ea;
+  --sidebar-primary-foreground: #161320;
+  --sidebar-accent: #28233a;
+  --sidebar-accent-foreground: #f6f4ea;
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: #52525b;
-  --success: #22c55e;
-  --warning: #f59e0b;
+  --sidebar-ring: #6b6585;
+  --success: #4ade80;
+  --warning: #fbbf24;
   --error: #ef4444;
-  --surface: #141416;
-  --elevated: #232328;
+  --surface: #1f1b2e;
+  --elevated: #322c47;
 
-  /* Theme-aware hairline tokens (dark) */
-  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline: rgba(255, 255, 255, 0.09);
   --hairline-soft: rgba(255, 255, 255, 0.05);
-  --hairline-strong: rgba(255, 255, 255, 0.14);
-  --tint-hover: rgba(255, 255, 255, 0.03);
+  --hairline-strong: rgba(255, 255, 255, 0.18);
+  --tint-hover: rgba(255, 255, 255, 0.04);
 
-  /* Entity colors hold across themes. */
-  --entity-task: #2563eb;
-  --entity-routine: #84cc16;
-  --entity-reminder: #f97316;
-  --entity-activity: #db2777;
-  --entity-plan: #ca8a04;
-  --entity-insight: #0d9488;
+  /* Entity colors hold across themes — same fills, identity is rock-solid.
+     On dark the pairing foregrounds may differ for the brightest tiles. */
+  --entity-task: #3b82f6;
+  --entity-task-fg: #ffffff;
+  --entity-routine: #bef264;
+  --entity-routine-fg: #0a0a08;
+  --entity-reminder: #fb923c;
+  --entity-reminder-fg: #1a1a18;
+  --entity-activity: #ec4899;
+  --entity-activity-fg: #ffffff;
+  --entity-plan: #fbbf24;
+  --entity-plan-fg: #1a1a18;
+  --entity-insight: #2dd4bf;
+  --entity-insight-fg: #0a0a08;
+  --entity-charcoal: #0a0a0c;
+  --entity-charcoal-fg: #f5f0e6;
 }
 
 @layer base {
@@ -299,41 +314,78 @@ h1, h2, h3, h4, h5, h6 {
   animation: ru-now-tick 2s ease-in-out infinite;
 }
 
-/* ---- Bento tile system ----------------------------------------------------
-   The bento card is the structural unit of /today. A flat surface (`bg-card`),
-   a hairline frame, and a 4px left-strip in an entity color. Hover lifts the
-   card 1px and widens the strip to 6px in ~150ms. The strip is implemented
-   as a ::before pseudo so the card itself stays a clean rectangle. */
+/* ---- Bento tile system (rebuilt) ------------------------------------------
+   v2: full-color saturated tile backgrounds. Each tile is its OWN visual
+   identity — color is the substance, not the edge. Chunky 28px radius,
+   2px lift on hover, no border (color contrast is the frame). */
 .ru-bento {
   position: relative;
-  background: var(--card);
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
+  background: var(--bento-bg, var(--card));
+  color: var(--bento-fg, var(--card-foreground));
+  border-radius: 28px;
   overflow: hidden;
-  transition: transform 150ms ease-out, border-color 150ms ease-out;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 180ms ease-out;
+  box-shadow: 0 1px 0 var(--hairline-soft);
 }
-.ru-bento::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--bento-color, var(--foreground));
-  transition: width 150ms ease-out;
+.ru-bento:hover:not([data-static="true"]) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
-.ru-bento:hover {
-  transform: translateY(-1px);
-  border-color: var(--hairline-strong);
+.dark .ru-bento:hover:not([data-static="true"]) {
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.36);
 }
-.ru-bento:hover::before {
-  width: 6px;
+
+/* Pill button on light tile (black) — high-contrast hero CTA. */
+.ru-pill-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  background: #0a0a0c;
+  color: #f5f0e6;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  transition: transform 150ms ease-out, opacity 150ms ease-out;
 }
-.ru-bento[data-static="true"]:hover {
-  transform: none;
+.ru-pill-dark:hover { opacity: 0.92; transform: translateY(-1px); }
+
+/* Pill button on dark/saturated tile (cream) — inverse hero CTA. */
+.ru-pill-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0a0a0c;
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 150ms ease-out, opacity 150ms ease-out;
 }
-.ru-bento[data-static="true"]:hover::before {
-  width: 4px;
+.ru-pill-light:hover { opacity: 0.92; transform: translateY(-1px); }
+
+/* Tilted sticker badge — small irregular tag with a tiny rotation. */
+.ru-sticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0a0a0c;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  transform: rotate(-2deg);
+}
+.ru-sticker-dark {
+  background: #0a0a0c;
+  color: #f5f0e6;
 }
 
 /* A small square entity marker, used next to titles or in legends. */

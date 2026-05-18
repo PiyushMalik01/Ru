@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
+import { RuMark } from "./ru-mark";
 
 // The three primary surfaces of Ru. Settings sits on the far right.
 // Order matters: Today is the publication, Sheet is the database, Chat is the conversation.
@@ -36,10 +37,13 @@ export function TopNav() {
           <Link
             href="/today"
             aria-label="Ru — home"
-            className="group flex items-baseline gap-px font-mono text-[14px] font-medium tracking-[-0.01em] text-foreground"
+            className="group flex items-center gap-2 font-mono text-[14px] font-medium tracking-[-0.01em] text-foreground"
           >
-            <span>ru</span>
-            <span className="text-foreground/60 transition-colors group-hover:text-foreground">.</span>
+            <RuMark size={26} />
+            <span className="flex items-baseline gap-px">
+              <span>ru</span>
+              <span className="text-foreground/60 transition-colors group-hover:text-foreground">.</span>
+            </span>
           </Link>
 
           <div className="flex items-baseline gap-1">

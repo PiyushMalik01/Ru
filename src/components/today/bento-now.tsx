@@ -1,18 +1,13 @@
-// NOW tile — the hero of the bento. Biggest type, top-left position (F-pattern).
-//
-// Shows the single most-relevant thing happening in the next hour. If there's
-// a task, that's the headline; if not, the next routine; if neither, a
-// kind, restful placeholder. The entity-color strip matches whatever's
-// being shown — cobalt for a task, lime for a routine.
+// NOW tile — the hero of the bento. Lime full-bg tile, black Fraunces
+// headline showing the next thing to do, with a black pill CTA in the
+// bottom-right. F-pattern: occupies col-span-2 row-span-2 top-left.
 
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BentoCard } from "./bento-card";
-import {
-  EntityMark,
-  formatWhen,
-  type EntityKind,
-} from "@/components/app-shell/primitives";
+import { Sticker } from "@/components/app-shell/sticker";
+import { formatWhen } from "@/components/app-shell/primitives";
 
 interface NowItem {
   kind: "task" | "routine";
@@ -41,83 +36,69 @@ function routineWhen(t: string | null): string {
 
 export function BentoNow({ items, nowMs, className }: Props) {
   const headline = items[0] ?? null;
-  const rest = items.slice(1, 3);
-
-  // The strip color and tint follow whatever's primary.
-  const tint: EntityKind = headline?.kind === "routine" ? "routine" : "task";
 
   if (!headline) {
     return (
-      <BentoCard
-        tint="task"
-        eyebrow="now"
-        caption="00"
-        className={cn("min-h-[280px]", className)}
-        staticTile
-      >
-        <div className="flex h-full flex-col justify-end">
-          <div className="font-display text-[44px] leading-[0.96] text-foreground sm:text-[56px]">
-            Nothing on the clock.
+      <BentoCard variant="routine" className={cn("min-h-[320px]", className)} staticTile>
+        <div className="flex h-full flex-col">
+          <div className="flex items-start justify-between">
+            <Sticker tilt={-3}>Now</Sticker>
+            <Sticker tilt={2} dark>Free</Sticker>
           </div>
-          <p className="mt-3 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-            The next hour is yours. Take a breath, or open the sheet and pick something up.
-          </p>
+          <div className="mt-auto">
+            <div className="font-display text-[52px] leading-[0.95] sm:text-[64px]">
+              Nothing on the clock.
+            </div>
+            <p className="mt-4 max-w-md text-[15px] leading-relaxed opacity-70">
+              The next hour is yours. Take a breath — or open the sheet and pick something up.
+            </p>
+            <div className="mt-7">
+              <Link href="/sheet" className="ru-pill-dark">
+                Open sheet <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
         </div>
       </BentoCard>
     );
   }
 
+  const variant = headline.kind === "routine" ? "routine" : "task";
   const whenLabel =
     headline.kind === "task"
       ? formatWhen(headline.whenIso, nowMs) ?? "soon"
       : routineWhen(headline.timeOfDay ?? null);
 
-  const href =
-    headline.kind === "task" ? "/sheet" : "/sheet";
-
   return (
-    <BentoCard
-      tint={tint}
-      eyebrow="now"
-      caption={items.length.toString().padStart(2, "0")}
-      className={cn("min-h-[280px]", className)}
-      href={href}
-    >
+    <BentoCard variant={variant} className={cn("min-h-[320px]", className)} href="/sheet">
       <div className="flex h-full flex-col">
-        <div className="flex items-baseline gap-3">
-          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-            {headline.kind === "task" ? "task" : "routine"}
-          </span>
-          <span className="font-display text-[18px] leading-none text-foreground sm:text-[20px]">
-            {whenLabel}
-          </span>
+        <div className="flex items-start justify-between gap-3">
+          <Sticker tilt={-3}>Now · {whenLabel}</Sticker>
+          {items.length > 1 && (
+            <Sticker tilt={2} dark>
+              +{items.length - 1} after
+            </Sticker>
+          )}
         </div>
 
-        <h2 className="mt-4 font-display text-[36px] leading-[1.02] text-foreground sm:text-[48px]">
+        <h2 className="mt-auto font-display text-[44px] leading-[0.98] sm:text-[60px]">
           {headline.title}
         </h2>
 
-        {rest.length > 0 && (
-          <ul className="mt-auto pt-6">
-            <div className="mb-3 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground/60">
-              and after
-            </div>
-            {rest.map((r) => (
-              <li
-                key={`${r.kind}-${r.id}`}
-                className="flex items-baseline gap-3 border-t border-[var(--hairline-soft)] py-2.5"
-              >
-                <EntityMark kind={r.kind} />
-                <span className="min-w-0 flex-1 truncate text-[13.5px]">{r.title}</span>
-                <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground">
-                  {r.kind === "task"
-                    ? formatWhen(r.whenIso, nowMs) ?? "—"
-                    : routineWhen(r.timeOfDay ?? null)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="mt-6 flex items-center justify-between">
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] opacity-65">
+            {headline.kind === "task" ? "task · open" : "routine · today"}
+          </span>
+          {variant === "task" ? (
+            <span className="ru-pill-light">
+              View <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          ) : (
+            <span className="ru-pill-dark">
+              Start <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
       </div>
     </BentoCard>
   );

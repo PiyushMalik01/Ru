@@ -4,6 +4,8 @@ import { fetchTodayBundle, listWorkspaces } from "@/lib/queries/workspace";
 import { fetchRoutinesWithToday } from "@/lib/queries/dashboard";
 import { composeStandfirst, firstNameFrom } from "@/lib/today-standfirst";
 import { NowMarker } from "@/components/app-shell/now-marker";
+import { RuMark } from "@/components/app-shell/ru-mark";
+import { Squiggle } from "@/components/app-shell/squiggle";
 import { BentoNow } from "@/components/today/bento-now";
 import { BentoStreak } from "@/components/today/bento-streak";
 import { BentoPlan, BentoPlanEmpty } from "@/components/today/bento-plan";
@@ -113,33 +115,41 @@ export default async function TodayPage() {
   const head = masthead();
   const featuredPlan = workspaces[0] ?? null;
 
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 5) return "Still up";
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    if (h < 21) return "Good evening";
+    return "Late tonight";
+  })();
+
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 pt-10 pb-32 md:pl-16">
-      {/* Date masthead — small mono caps + live clock + edition mark.
-          Theme-aware hairline below. */}
-      <header className="flex items-baseline justify-between gap-4">
-        <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-foreground">
-          {head.weekday}
-          <span className="px-2 text-muted-foreground/50">·</span>
-          {head.date}
-          <span className="px-2 text-muted-foreground/50">·</span>
-          <span className="text-muted-foreground">edition {head.iso}</span>
+    <div className="mx-auto w-full max-w-6xl px-6 pt-8 pb-32">
+      {/* Greeting masthead — mascot on the left, weekday + live clock on the right.
+          Chunky, friendly, with personality. */}
+      <header className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <RuMark size={40} />
+          <div>
+            <div className="font-display text-[20px] leading-none">
+              {greeting}
+              {firstName ? `, ${firstName}` : ""}.
+            </div>
+            <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              {head.weekday} · {head.date}
+            </div>
+          </div>
         </div>
         <NowMarker />
       </header>
-      <div className="ru-rule mt-3" />
 
-      {/* Standfirst — the cover line. Fraunces, large, anchors the page.
-          The first name (if any) renders in display italics for warmth. */}
+      {/* Standfirst — the cover line. Fraunces, large, anchors the page. */}
       <div className="mt-10 max-w-3xl">
-        {firstName ? (
-          <div className="mb-3 font-display text-[18px] italic leading-none text-muted-foreground sm:text-[20px]">
-            {firstName},
-          </div>
-        ) : null}
-        <h1 className="font-display text-[32px] leading-[1.06] text-foreground sm:text-[44px]">
+        <h1 className="font-display text-[36px] leading-[1.03] text-foreground sm:text-[52px]">
           {standfirst}
         </h1>
+        <Squiggle className="mt-5 text-muted-foreground" width={200} />
       </div>
 
       {/* Bento grid — six tiles, asymmetric, F-pattern.
@@ -184,8 +194,11 @@ export default async function TodayPage() {
       </div>
 
       {/* Colophon — print spread footer. */}
-      <footer className="mt-20 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">
-        <span>ru. — daily</span>
+      <footer className="mt-20 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+        <span className="inline-flex items-center gap-2">
+          <RuMark size={18} />
+          <span>ru. — daily</span>
+        </span>
         <span>vol · {head.iso}</span>
       </footer>
     </div>

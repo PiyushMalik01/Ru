@@ -34,6 +34,7 @@ function formatDuration(min?: number): string {
   return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
 }
 
+// Full magenta tile, white type. Compact since activity is the most frequent.
 export function ActivityCard({ data }: { data: ActivityCardData }) {
   const [open, setOpen] = useState(false);
   const dur = formatDuration(data.duration_minutes);
@@ -43,28 +44,34 @@ export function ActivityCard({ data }: { data: ActivityCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
-      style={{ ["--entity-color" as string]: "var(--entity-activity)" }}
       className={cn(
-        "ru-strip block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[var(--hairline-strong)]"
+        "block w-full overflow-hidden rounded-2xl text-left transition-transform",
+        "hover:-translate-y-0.5"
       )}
+      style={{
+        background: "var(--entity-activity)",
+        color: "var(--entity-activity-fg)",
+      }}
     >
-      <div className="flex items-center gap-3 pl-5 pr-4 py-3">
-        <div className="min-w-0 flex-1 truncate text-[14px] font-medium leading-tight">
+      <div className="flex items-center gap-3 px-5 py-4">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+          logged
+        </span>
+        <div className="min-w-0 flex-1 truncate text-[14.5px] font-medium leading-tight">
           {data.activity}
         </div>
         {data.category && (
-          <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] lowercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 font-mono text-[10px] lowercase tracking-wide">
             {data.category}
           </span>
         )}
         {dur && (
-          <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+          <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-90">
             {dur}
           </span>
         )}
         {rel && (
-          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+          <span className="shrink-0 font-mono text-[11px] opacity-85">
             {rel}
           </span>
         )}
@@ -79,11 +86,8 @@ export function ActivityCard({ data }: { data: ActivityCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border pl-5 pr-4 py-2.5">
-              <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span>{data.category ?? "uncategorized"}</span>
-                <span>{data.timestamp ? new Date(data.timestamp).toLocaleString() : "—"}</span>
-              </div>
+            <div className="border-t border-white/20 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-80">
+              {data.timestamp ? new Date(data.timestamp).toLocaleString() : "—"}
             </div>
           </motion.div>
         )}

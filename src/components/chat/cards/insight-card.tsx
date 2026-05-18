@@ -13,12 +13,9 @@ export type InsightKind =
 export interface InsightCardData {
   kind: InsightKind;
   title?: string;
-  // routine_streak
   streak?: number;
   routine_title?: string;
-  // *_completion_rate
-  rate?: number; // 0..1 or 0..100
-  // activity_count
+  rate?: number;
   count?: number;
   category?: string;
   period?: string;
@@ -29,6 +26,16 @@ function clampPct(v: number): number {
   return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
+function labelFor(kind: InsightKind): string {
+  switch (kind) {
+    case "routine_streak":            return "streak";
+    case "routine_completion_rate":   return "routine completion";
+    case "task_completion_rate":      return "task completion";
+    case "activity_count":            return "activity";
+  }
+}
+
+// Full teal tile, dark type. Big metric is the hero — Fraunces.
 export function InsightCard({ data }: { data: InsightCardData }) {
   const [open, setOpen] = useState(false);
 
@@ -36,13 +43,21 @@ export function InsightCard({ data }: { data: InsightCardData }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
-      style={{ ["--entity-color" as string]: "var(--entity-insight)" }}
       className={cn(
-        "ru-strip block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-colors",
-        "hover:border-[var(--hairline-strong)]"
+        "block w-full overflow-hidden rounded-2xl text-left transition-transform",
+        "hover:-translate-y-0.5"
       )}
+      style={{
+        background: "var(--entity-insight)",
+        color: "var(--entity-insight-fg)",
+      }}
     >
-      <div className="pl-5 pr-4 py-4">
+      <div className="px-5 py-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
+            insight · {labelFor(data.kind)}
+          </span>
+        </div>
         <InsightBody data={data} />
       </div>
 
@@ -55,11 +70,8 @@ export function InsightCard({ data }: { data: InsightCardData }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border pl-5 pr-4 py-2.5">
-              <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span>{labelFor(data.kind)}</span>
-                <span>{data.period ?? "—"}</span>
-              </div>
+            <div className="border-t border-black/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-80">
+              {data.period ?? "—"}
             </div>
           </motion.div>
         )}
@@ -68,33 +80,20 @@ export function InsightCard({ data }: { data: InsightCardData }) {
   );
 }
 
-function labelFor(kind: InsightKind): string {
-  switch (kind) {
-    case "routine_streak":
-      return "streak";
-    case "routine_completion_rate":
-      return "routine completion";
-    case "task_completion_rate":
-      return "task completion";
-    case "activity_count":
-      return "activity";
-  }
-}
-
 function InsightBody({ data }: { data: InsightCardData }) {
   if (data.kind === "routine_streak") {
     const streak = Math.max(0, data.streak ?? 0);
     return (
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">
-          <div className="font-display text-[52px] leading-none tracking-tight tabular-nums text-foreground">
+          <div className="font-display text-[60px] leading-[0.85] tracking-tight tabular-nums">
             {streak}
           </div>
-          <div className="mt-2 truncate text-[14px] font-medium leading-tight">
+          <div className="mt-2 truncate text-[14.5px] font-medium leading-tight">
             {data.routine_title ?? data.title ?? "current streak"}
           </div>
         </div>
-        <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] opacity-75">
           {streak === 1 ? "day" : "days"}
         </div>
       </div>
@@ -109,39 +108,34 @@ function InsightBody({ data }: { data: InsightCardData }) {
     return (
       <div>
         <div className="flex items-baseline justify-between gap-4">
-          <div className="font-display text-[52px] leading-none tracking-tight tabular-nums text-foreground">
+          <div className="font-display text-[60px] leading-[0.85] tracking-tight tabular-nums">
             {pct}
-            <span className="ml-1 text-[18px] text-muted-foreground">%</span>
+            <span className="ml-1 text-[22px] opacity-65">%</span>
           </div>
-          <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] opacity-75">
             {data.period ?? "this week"}
           </div>
         </div>
-        <div className="mt-3 truncate text-[13px] text-muted-foreground">{label}</div>
-        <div className="mt-3 h-px w-full overflow-hidden rounded-full bg-[var(--hairline)]">
-          <div
-            className="h-px transition-all"
-            style={{ width: `${pct}%`, background: "var(--entity-insight)" }}
-            aria-hidden
-          />
+        <div className="mt-3 truncate text-[13px] opacity-80">{label}</div>
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/15">
+          <div className="h-full bg-black/70 transition-all" style={{ width: `${pct}%` }} aria-hidden />
         </div>
       </div>
     );
   }
 
-  // activity_count
   const count = Math.max(0, data.count ?? 0);
   return (
     <div className="flex items-baseline justify-between gap-4">
       <div className="min-w-0">
-        <div className="font-mono text-[42px] font-light leading-none tracking-tight tabular-nums">
+        <div className="font-display text-[56px] leading-[0.85] tracking-tight tabular-nums">
           {count}
         </div>
-        <div className="mt-2 truncate text-[14px] font-medium leading-tight">
+        <div className="mt-2 truncate text-[14.5px] font-medium leading-tight">
           {data.category ? `${data.category}` : data.title ?? "activities"}
         </div>
       </div>
-      <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] opacity-75">
         {data.period ?? "this week"}
       </div>
     </div>
