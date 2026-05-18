@@ -19,7 +19,6 @@ export type SheetFilter = (typeof FILTERS)[number]["key"];
 
 const VIEWS = [
   { key: "table",    label: "table" },
-  { key: "board",    label: "board" },
   { key: "calendar", label: "calendar" },
   { key: "timeline", label: "timeline" },
 ] as const;
