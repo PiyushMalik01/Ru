@@ -28,5 +28,8 @@ export async function getCurrentProvider(): Promise<"openai" | "anthropic" | "ge
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const { data } = await supabase.from("profiles").select("ai_provider").eq("id", user.id).single();
-  return (data?.ai_provider as "openai" | "anthropic" | "gemini" | null) ?? null;
+  const provider = data?.ai_provider;
+  // chatgpt_oauth is surfaced via ChatGPTConnection, not the BYOK form
+  if (provider === "openai" || provider === "anthropic" || provider === "gemini") return provider;
+  return null;
 }

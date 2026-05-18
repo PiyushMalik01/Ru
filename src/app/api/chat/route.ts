@@ -4,13 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto";
 import { assembleContext } from "@/lib/ai/engine/context";
 import { runConversation } from "@/lib/ai/engine/stream";
-import type { ProviderConfig } from "@/lib/ai/types";
+import { getValidChatGPTToken } from "@/lib/ai/openai-connection";
+import { CODEX_MODEL } from "@/lib/ai/providers/codex";
+import type { Provider, ProviderConfig } from "@/lib/ai/types";
 
 export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({ message: z.string().min(1).max(4000) });
 
-const MODEL_DEFAULTS: Record<string, string> = {
+const MODEL_DEFAULTS: Record<Provider, string> = {
+  chatgpt_oauth: CODEX_MODEL,
   openai: process.env.OPENAI_MODEL_DEFAULT ?? "gpt-4o-mini",
   anthropic: process.env.ANTHROPIC_MODEL_DEFAULT ?? "claude-sonnet-4-6",
   gemini: process.env.GEMINI_MODEL_DEFAULT ?? "gemini-2.5-flash",
@@ -27,21 +30,34 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase.from("profiles").select("ai_provider, ai_credentials").eq("id", user.id).single();
   if (!profile?.ai_provider || !profile.ai_credentials) {
-    return new Response("AI provider not configured. Add your API key in Settings.", { status: 412 });
+    return new Response("AI provider not configured. Connect ChatGPT or add an API key in Settings.", { status: 412 });
   }
 
-  const provider = profile.ai_provider as "openai" | "anthropic" | "gemini";
-  const creds = profile.ai_credentials as { apiKey?: string; model?: string };
-  if (!creds.apiKey) return new Response("api key missing", { status: 412 });
+  const provider = profile.ai_provider as Provider;
+  let config: ProviderConfig;
 
-  let apiKey: string;
-  try { apiKey = decrypt(creds.apiKey); } catch { return new Response("api key unreadable", { status: 412 }); }
-
-  const config: ProviderConfig = {
-    provider,
-    apiKey,
-    model: creds.model ?? MODEL_DEFAULTS[provider],
-  };
+  if (provider === "chatgpt_oauth") {
+    const tokenInfo = await getValidChatGPTToken(supabase, user.id);
+    if (!tokenInfo) {
+      return new Response("ChatGPT session expired. Reconnect ChatGPT in Settings.", { status: 412 });
+    }
+    config = {
+      provider,
+      // Codex provider unpacks "accessToken::accountId" — see src/lib/ai/providers/codex.ts
+      apiKey: `${tokenInfo.accessToken}::${tokenInfo.accountId}`,
+      model: CODEX_MODEL, // forced to gpt-5.4 — do not override
+    };
+  } else {
+    const creds = profile.ai_credentials as { apiKey?: string; model?: string };
+    if (!creds.apiKey) return new Response("api key missing", { status: 412 });
+    let apiKey: string;
+    try { apiKey = decrypt(creds.apiKey); } catch { return new Response("api key unreadable", { status: 412 }); }
+    config = {
+      provider,
+      apiKey,
+      model: creds.model ?? MODEL_DEFAULTS[provider],
+    };
+  }
 
   const { data: userMsg } = await supabase.from("messages").insert({
     user_id: user.id,

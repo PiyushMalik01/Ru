@@ -1,4 +1,4 @@
-export type Provider = "openai" | "anthropic" | "gemini";
+export type Provider = "chatgpt_oauth" | "openai" | "anthropic" | "gemini";
 
 export interface NormalizedMessage {
   role: "system" | "user" | "assistant" | "tool";
