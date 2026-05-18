@@ -1,23 +1,18 @@
 "use client";
 
-// RuGhost — Ru's character presence. Soft morphing blob, simple face,
-// drifts around an anchor point, occasionally speaks. Sits as a fixed
-// floating layer with pointer-events: none so it never blocks anything.
+// RuGhost — Ru's character presence. Three layers of motion stacked so the
+// movement reads as alive rather than scripted:
 //
-// Architecture:
-//   - One persistent component, mounted in AppLayout.
-//   - Pathname picks an anchor position (top-right area on most pages,
-//     near the page heading on /today). Anchor swaps with a soft transition
-//     on route change.
-//   - Around the anchor, Ru drifts in a small ellipse via framer-motion
-//     keyframes — gives the body its own life.
-//   - The body uses an animated border-radius blob (no SVG morph required)
-//     so the silhouette is never a perfect circle and slowly reshapes.
-//   - Expressions and speech read from the ru-companion store; either
-//     auto-driven by route + time, or triggered by other components.
-//   - Hidden entirely on /chat, /settings, /onboarding where it would clutter.
+//   1. Travel layer (outermost): every 22-35s Ru picks a new anchor from a
+//      route-specific list and springs to it.
+//   2. Drift layer (middle): around the current anchor, Ru floats in a
+//      slow ellipse — keyframes on x/y over ~14s.
+//   3. Body layer (inner): the silhouette morphs via animated border-radius
+//      and rotates 0-5° so the shape is never identical frame to frame.
+//
+// On top, the face blinks, expressions tween, and the cloud bubble pops.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
@@ -25,100 +20,148 @@ import { RuFace } from "./ru-face";
 import { RuSpeech } from "./ru-speech";
 import { pickGreeting, pickIdleLine } from "./messages";
 
-const SIZE = 88;
+const SIZE = 90;
 
-// Where Ru anchors per route. Coordinates are interpreted from the right edge
-// (right) and top (top) of the viewport so she stays correctly placed on any
-// width without breaking layout. On /today we sit her low-right of the page
-// heading area; everywhere else she chills in the top-right gutter.
 interface Anchor {
-  /** distance from viewport right edge */
+  /** distance from viewport right edge in px */
   right: number;
-  /** distance from viewport top */
+  /** distance from viewport top in px */
   top: number;
+  /** which side the speech cloud should appear on */
+  tail?: "left" | "right";
 }
 
-function anchorFor(pathname: string): Anchor | null {
-  // Hide her entirely where she'd clutter input-heavy pages.
+/**
+ * Per-route anchor sets — Ru roams between them. Positions are kept in the
+ * right-side gutter so she doesn't fly across content. Each anchor is a
+ * resting spot; the drift layer gives her micro-motion around it.
+ */
+const ANCHORS: Record<string, Anchor[]> = {
+  today: [
+    { right: 90, top: 150, tail: "right" },
+    { right: 60, top: 340, tail: "right" },
+    { right: 110, top: 520, tail: "right" },
+    { right: 70, top: 720, tail: "right" },
+  ],
+  sheet: [
+    { right: 60, top: 140, tail: "right" },
+    { right: 96, top: 380, tail: "right" },
+    { right: 56, top: 600, tail: "right" },
+  ],
+  plans: [
+    { right: 80, top: 160, tail: "right" },
+    { right: 60, top: 380, tail: "right" },
+    { right: 100, top: 580, tail: "right" },
+  ],
+  planDetail: [
+    { right: 64, top: 200, tail: "right" },
+    { right: 90, top: 420, tail: "right" },
+    { right: 56, top: 640, tail: "right" },
+  ],
+  fallback: [{ right: 70, top: 160, tail: "right" }],
+};
+
+function bucketFor(pathname: string): keyof typeof ANCHORS | null {
   if (pathname.startsWith("/chat")) return null;
   if (pathname.startsWith("/settings")) return null;
   if (pathname.startsWith("/onboarding")) return null;
 
-  if (pathname.startsWith("/today")) return { right: 80, top: 150 };
-  if (pathname.startsWith("/plans/")) return { right: 64, top: 140 };
-  if (pathname.startsWith("/plans")) return { right: 80, top: 160 };
-  if (pathname.startsWith("/sheet")) return { right: 56, top: 130 };
-
-  // Default — top right, out of the way.
-  return { right: 64, top: 140 };
+  if (/^\/plans\/[0-9a-f-]{36}/i.test(pathname)) return "planDetail";
+  if (pathname.startsWith("/plans")) return "plans";
+  if (pathname.startsWith("/sheet")) return "sheet";
+  if (pathname.startsWith("/today")) return "today";
+  return "fallback";
 }
 
 export function RuGhost() {
   const pathname = usePathname();
-  const anchor = useMemo(() => anchorFor(pathname), [pathname]);
+  const bucket = useMemo(() => bucketFor(pathname), [pathname]);
+  const anchors = bucket ? ANCHORS[bucket] : null;
+
+  const [anchorIdx, setAnchorIdx] = useState(0);
+
+  useEffect(() => {
+    setAnchorIdx(0);
+  }, [bucket]);
+
+  // Rotate anchors every 22-35s.
+  useEffect(() => {
+    if (!anchors || anchors.length <= 1) return;
+    const wait = 22_000 + Math.random() * 13_000;
+    const t = setTimeout(() => {
+      setAnchorIdx((i) => (i + 1) % anchors.length);
+    }, wait);
+    return () => clearTimeout(t);
+  }, [anchorIdx, anchors]);
 
   const expression = useRuCompanion((s) => s.expression);
   const said = useRuCompanion((s) => s.said);
   const say = useRuCompanion((s) => s.say);
   const setHidden = useRuCompanion((s) => s.setHidden);
 
-  // Keep the store's "hidden" in sync so other components can read it.
   useEffect(() => {
-    setHidden(anchor === null);
-  }, [anchor, setHidden]);
+    setHidden(!bucket);
+  }, [bucket, setHidden]);
 
-  // Route greeting — say something fresh on route change.
+  // Greeting on route change.
   const lastGreetRoute = useRef<string | null>(null);
   useEffect(() => {
-    if (!anchor) return;
+    if (!bucket) return;
     if (lastGreetRoute.current === pathname) return;
     lastGreetRoute.current = pathname;
     const line = pickGreeting(pathname);
-    if (line) say(line, 4200);
-  }, [anchor, pathname, say]);
+    if (line) say(line, 4400);
+  }, [bucket, pathname, say]);
 
-  // Idle observations — every 35-65s drop a gentle line, if Ru's quiet.
+  // Idle observations every 32-60s when she's quiet.
   useEffect(() => {
-    if (!anchor) return;
-    const tick = () => {
+    if (!bucket) return;
+    const wait = 32_000 + Math.random() * 28_000;
+    const t = setTimeout(() => {
       const current = useRuCompanion.getState().said;
       if (!current) {
         const line = pickIdleLine(pathname);
         if (line) useRuCompanion.getState().say(line, 3800);
       }
-    };
-    const wait = 35_000 + Math.random() * 30_000;
-    const t = setTimeout(tick, wait);
+    }, wait);
     return () => clearTimeout(t);
-  }, [anchor, pathname]);
+  }, [bucket, pathname, anchorIdx]);
 
-  if (!anchor) return null;
+  if (!bucket || !anchors) return null;
+
+  const currentAnchor = anchors[anchorIdx] ?? anchors[0];
+  const tail = currentAnchor.tail ?? "right";
 
   return (
-    <div
+    <motion.div
       aria-hidden
-      className="pointer-events-none fixed z-[5] hidden sm:block"
-      style={{
-        right: anchor.right,
-        top: anchor.top,
-        width: SIZE,
-        height: SIZE,
+      className="pointer-events-none fixed right-0 top-0 z-[5] hidden sm:block"
+      animate={{
+        x: -currentAnchor.right,
+        y: currentAnchor.top,
       }}
+      transition={{
+        type: "spring",
+        stiffness: 36,
+        damping: 14,
+        mass: 1.1,
+      }}
+      style={{ width: SIZE, height: SIZE }}
     >
-      {/* The drift container — Ru's body floats inside an ellipse around the anchor. */}
+      {/* Drift — slow ellipse around the current anchor */}
       <motion.div
         animate={{
           x: [0, 14, -8, 6, 0, -10, 4, 0],
           y: [0, -10, 8, -4, -12, 6, -6, 0],
         }}
         transition={{
-          duration: 18,
+          duration: 14,
           repeat: Infinity,
           ease: "easeInOut",
         }}
         className="relative h-full w-full"
       >
-        {/* The morphing blob body. border-radius animates to give organic shape. */}
+        {/* Body — morphing blob with gentle rotation */}
         <motion.div
           animate={{
             borderRadius: [
@@ -135,21 +178,32 @@ export function RuGhost() {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          className="absolute inset-0 flex items-center justify-center bg-[#f4d2bd] shadow-[0_8px_28px_-8px_rgba(0,0,0,0.18)] dark:bg-[#e9bba0] dark:shadow-[0_10px_36px_-8px_rgba(0,0,0,0.55)]"
+          className="absolute inset-0 flex items-center justify-center bg-[#f4d2bd] dark:bg-[#e9bba0]"
           style={{
-            // Keep the shadow softly outside the morphing edge.
             boxShadow:
-              "0 8px 28px -10px rgba(0,0,0,0.22), inset 0 -6px 14px rgba(0,0,0,0.06)",
+              "0 10px 30px -10px rgba(0,0,0,0.25), inset 0 -8px 16px rgba(0,0,0,0.06)",
           }}
         >
           <RuFace expression={expression} size={SIZE} />
         </motion.div>
 
-        {/* Speech bubble — anchored to the LEFT of the body (Ru is on the right) */}
-        <div className="absolute top-1/2 -translate-y-1/2" style={{ right: SIZE + 12 }}>
-          <RuSpeech text={said?.text ?? null} tail="right" />
-        </div>
+        {/* Speech cloud — anchored to the side opposite the tail */}
+        {tail === "right" ? (
+          <div
+            className="absolute top-1/2 -translate-y-1/2"
+            style={{ right: SIZE + 18 }}
+          >
+            <RuSpeech text={said?.text ?? null} tail="right" />
+          </div>
+        ) : (
+          <div
+            className="absolute top-1/2 -translate-y-1/2"
+            style={{ left: SIZE + 18 }}
+          >
+            <RuSpeech text={said?.text ?? null} tail="left" />
+          </div>
+        )}
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
