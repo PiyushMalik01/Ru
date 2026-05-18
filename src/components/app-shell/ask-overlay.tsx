@@ -22,6 +22,7 @@ import { useChatStore, type ChatMessage } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { Markdown } from "@/components/chat/markdown";
 import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
+import { usePushToTalk } from "@/lib/hooks/use-push-to-talk";
 import { cn } from "@/lib/utils";
 
 interface PageContext {
@@ -195,6 +196,31 @@ export function AskOverlay() {
     finalBufRef.current = "";
     void sendText(t);
   }
+
+  // Hold-space-to-talk: when held anywhere, open the HUD and start listening.
+  // On release, stop the mic and submit the captured transcript.
+  usePushToTalk({
+    onStart: () => {
+      if (!open) setOpen(true);
+      if (!sttRef.current) {
+        void handleMic();
+      }
+    },
+    onStop: () => {
+      if (sttRef.current) {
+        stopSTT();
+      }
+      // Slight delay so the final transcript can settle into state.
+      window.setTimeout(() => {
+        const text = (input.trim() || finalBufRef.current.trim()).trim();
+        if (text) {
+          setInput("");
+          finalBufRef.current = "";
+          void sendText(text);
+        }
+      }, 80);
+    },
+  });
 
   async function handleMic() {
     if (listening) {
@@ -378,8 +404,9 @@ export function AskOverlay() {
             >
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--entity-routine)]" />
               <span className="text-[12.5px] text-muted-foreground">{ctx.placeholder}</span>
-              <span className="ml-auto rounded-full bg-foreground/10 px-1.5 py-0.5 font-mono text-[9.5px] tracking-wide text-muted-foreground">
-                /
+              <span className="ml-auto flex items-center gap-1 font-mono text-[9.5px] tracking-wide text-muted-foreground">
+                <span className="rounded-full bg-foreground/10 px-1.5 py-0.5">/</span>
+                <span className="rounded-full bg-foreground/10 px-2 py-0.5">hold ⎵</span>
               </span>
             </button>
           )}

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { VoiceConversation } from "@/components/chat/voice-conversation";
+import { usePushToTalk } from "@/lib/hooks/use-push-to-talk";
 
 type PillState = "idle" | "typing" | "listening";
 
@@ -110,6 +111,29 @@ export function FloatingPill() {
     }
     submit(input);
   }
+
+  // Hold-space-to-talk on /chat as well. Disabled in voice-only mode (the
+  // orb already runs continuously and would conflict) and when the orb is open.
+  usePushToTalk({
+    enabled: !voiceMode && !orbOpen,
+    onStart: () => {
+      if (state === "listening") return;
+      void handleMicClick();
+    },
+    onStop: () => {
+      if (sttRef.current) {
+        stopSTT();
+      }
+      window.setTimeout(() => {
+        const text = (input.trim() || finalBufRef.current.trim()).trim();
+        if (text) {
+          submit(text);
+        } else {
+          setState("idle");
+        }
+      }, 80);
+    },
+  });
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
