@@ -11,18 +11,20 @@ export function Markdown({ children }: { children: string }) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
+        // Headings in Ru's replies use Fraunces so they share the same voice
+        // as the page H1s. Sizes scale down to fit within a streamed reply.
         h1: ({ children }) => (
-          <h1 className="mt-6 mb-2 text-[20px] font-semibold tracking-tight first:mt-0">
+          <h1 className="mt-6 mb-2 font-display text-[22px] leading-[1.1] tracking-tight first:mt-0">
             {children}
           </h1>
         ),
         h2: ({ children }) => (
-          <h2 className="mt-5 mb-2 text-[17px] font-semibold tracking-tight first:mt-0">
+          <h2 className="mt-5 mb-2 font-display text-[19px] leading-[1.15] tracking-tight first:mt-0">
             {children}
           </h2>
         ),
         h3: ({ children }) => (
-          <h3 className="mt-4 mb-2 text-[15px] font-semibold tracking-tight first:mt-0">
+          <h3 className="mt-4 mb-2 font-display text-[16px] leading-[1.2] tracking-tight first:mt-0">
             {children}
           </h3>
         ),

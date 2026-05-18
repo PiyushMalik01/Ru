@@ -61,7 +61,7 @@ export function OnboardingForm({ initialName, initialTimezone, hasAiProvider }: 
 
       {step === "profile" ? (
         <form onSubmit={submitProfile} className="mt-6">
-          <h1 className="text-[36px] font-medium leading-[1.1] tracking-tight text-foreground">
+          <h1 className="font-display text-[36px] leading-[1.02] tracking-tight text-foreground sm:text-[42px]">
             Welcome to Ru.
           </h1>
           <p
@@ -116,7 +116,7 @@ export function OnboardingForm({ initialName, initialTimezone, hasAiProvider }: 
         </form>
       ) : (
         <div className="mt-6">
-          <h1 className="text-[36px] font-medium leading-[1.1] tracking-tight text-foreground">
+          <h1 className="font-display text-[36px] leading-[1.02] tracking-tight text-foreground sm:text-[42px]">
             Connect Ru to an AI.
           </h1>
           <p

@@ -82,7 +82,7 @@ export default async function TasksPage() {
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           tasks · {new Date().toLocaleDateString([], { weekday: "long" }).toLowerCase()}
         </div>
-        <h1 className="mt-4 text-[36px] font-medium leading-[1.05] tracking-tight">
+        <h1 className="mt-4 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
           {openCount === 0 && all.length === 0
             ? "A clear board."
             : openCount === 0

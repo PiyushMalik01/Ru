@@ -107,7 +107,7 @@ export function TaskRow({ id, title, status, priority, dueAt, tags }: TaskRowPro
         <div className="flex items-baseline gap-2">
           <span
             className={cn(
-              "truncate text-[14.5px] font-medium leading-tight",
+              "truncate text-[15px] font-medium leading-snug tracking-[-0.005em]",
               optimisticDone && "text-muted-foreground line-through"
             )}
           >

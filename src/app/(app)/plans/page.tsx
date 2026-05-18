@@ -38,7 +38,7 @@ export default async function PlansPage() {
           <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
             plans
           </div>
-          <h1 className="mt-3 text-[28px] font-light leading-tight tracking-[-0.018em]">
+          <h1 className="mt-3 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
             The arcs in motion.
           </h1>
           <p className="mt-2 max-w-md text-[13.5px] text-muted-foreground">
@@ -80,7 +80,7 @@ export default async function PlansPage() {
               </span>
               <div className="min-w-0">
                 <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="truncate text-[15.5px] font-medium leading-tight">
+                  <h3 className="truncate text-[16px] font-medium leading-snug tracking-[-0.005em]">
                     <span className="ru-link">{w.title}</span>
                   </h3>
                   <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-muted-foreground">

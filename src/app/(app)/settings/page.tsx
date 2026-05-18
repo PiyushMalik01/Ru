@@ -18,7 +18,7 @@ export default async function SettingsPage() {
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           settings · ai connection
         </div>
-        <h1 className="mt-4 text-[32px] font-medium leading-tight tracking-tight">
+        <h1 className="mt-4 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
           Connect Ru to an AI.
         </h1>
         <p

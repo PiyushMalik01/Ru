@@ -73,7 +73,7 @@ function EmptyState() {
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           ru · ready
         </div>
-        <h1 className="mt-5 text-[44px] font-medium leading-[1.05] tracking-tight text-foreground">
+        <h1 className="mt-5 font-display text-[52px] leading-[1.02] tracking-tight text-foreground">
           {greeting}
         </h1>
         <p
