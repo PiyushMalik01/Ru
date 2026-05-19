@@ -32,6 +32,7 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -61,12 +62,29 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
   }
 
   function handleDelete(chatId: string) {
+    setDeleteError(null);
     startTransition(async () => {
-      await deleteChat(chatId);
-      if (activeChatId === chatId) {
-        router.push("/chat");
-      } else {
-        router.refresh();
+      try {
+        const result = await deleteChat(chatId);
+        if (!result.ok) {
+          // Make failure visible — previously we silently swallowed the
+          // result, which is what made "delete doesn't work" look like a
+          // dead button instead of an authorization / network error.
+          setDeleteError(result.error ?? "Couldn't delete the chat.");
+          return;
+        }
+        if (activeChatId === chatId) {
+          router.push("/chat");
+          router.refresh();
+        } else {
+          router.refresh();
+        }
+      } catch (err) {
+        // Server-action transport errors, RSC parsing errors, network
+        // hiccups — anything that throws ends up here and surfaces to
+        // the user instead of silently disappearing.
+        const msg = err instanceof Error ? err.message : "Delete failed.";
+        setDeleteError(msg);
       }
     });
   }
@@ -146,6 +164,22 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
           <PanelLeftClose className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Inline error surface for the most recent failed mutation. Sits
+          right under the header so users notice without it being a toast. */}
+      {deleteError && (
+        <div className="mx-3 mb-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+          <span className="flex-1">{deleteError}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteError(null)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded text-destructive/70 hover:text-destructive"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       {/* Chat list */}
       <div className="flex-1 overflow-y-auto px-2 pb-3">
@@ -251,16 +285,28 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
                           </button>
                           <button
                             type="button"
-                            onClick={async (e) => {
+                            onClick={(e) => {
+                              // Stop both React's synthetic event AND the
+                              // native event — the latter prevents the
+                              // window-level outside-click listener (which
+                              // closes the menu) from running before we've
+                              // captured the chat reference.
                               e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
                               setOpenMenuId(null);
-                              const ok = await confirm({
-                                title: "Delete this chat?",
-                                description: `"${chat.title}" and every message in it will be permanently removed. This can't be undone.`,
-                                confirmLabel: "Delete chat",
-                                destructive: true,
-                              });
-                              if (ok) handleDelete(chat.id);
+                              // Snapshot the chat into a local so the
+                              // pending async work doesn't depend on the
+                              // closure being alive after the menu unmounts.
+                              const target = { id: chat.id, title: chat.title };
+                              void (async () => {
+                                const ok = await confirm({
+                                  title: "Delete this chat?",
+                                  description: `"${target.title}" and every message in it will be permanently removed. This can't be undone.`,
+                                  confirmLabel: "Delete chat",
+                                  destructive: true,
+                                });
+                                if (ok) handleDelete(target.id);
+                              })();
                             }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-error transition-colors hover:bg-secondary"
                           >
