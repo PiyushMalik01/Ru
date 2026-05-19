@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { deleteEntryAction } from "@/app/(app)/trackers/actions";
 import type { TrackerEntry, TrackerField } from "@/lib/queries/trackers";
+import { confirm } from "@/lib/stores/confirm-store";
 
 interface Props {
   trackerId: string;
@@ -58,8 +59,14 @@ function EntryRow({
   const [hidden, setHidden] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function remove() {
-    if (!confirm("Delete this entry?")) return;
+  async function remove() {
+    const ok = await confirm({
+      title: "Delete this entry?",
+      description: "Removing this entry won't affect the rest of the tracker — just this single log.",
+      confirmLabel: "Delete entry",
+      destructive: true,
+    });
+    if (!ok) return;
     setHidden(true);
     const fd = new FormData();
     fd.set("trackerId", trackerId);

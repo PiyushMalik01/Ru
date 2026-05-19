@@ -16,6 +16,7 @@ import {
   renameWorkspace,
   archiveWorkspace,
 } from "@/app/(app)/chat/workspace-actions";
+import { confirm } from "@/lib/stores/confirm-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,9 +96,13 @@ export function WorkspaceHeader({
     });
   }
 
-  function handleArchive() {
+  async function handleArchive() {
     if (!currentWorkspace) return;
-    const ok = confirm(`Archive "${currentWorkspace.title}"?`);
+    const ok = await confirm({
+      title: `Archive "${currentWorkspace.title}"?`,
+      description: "Items inside the workspace stay where they are — the workspace itself is just hidden from the list.",
+      confirmLabel: "Archive",
+    });
     if (!ok) return;
     startTransition(async () => {
       await archiveWorkspace(currentWorkspace.id);

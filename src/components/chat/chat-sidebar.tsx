@@ -10,6 +10,7 @@ import {
   deleteChat,
   renameChat,
 } from "@/app/(app)/chat/chat-actions";
+import { confirm } from "@/lib/stores/confirm-store";
 
 export interface ChatSummary {
   id: string;
@@ -250,12 +251,16 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
                           </button>
                           <button
                             type="button"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
                               setOpenMenuId(null);
-                              if (window.confirm(`Delete "${chat.title}"? This can't be undone.`)) {
-                                handleDelete(chat.id);
-                              }
+                              const ok = await confirm({
+                                title: "Delete this chat?",
+                                description: `"${chat.title}" and every message in it will be permanently removed. This can't be undone.`,
+                                confirmLabel: "Delete chat",
+                                destructive: true,
+                              });
+                              if (ok) handleDelete(chat.id);
                             }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-error transition-colors hover:bg-secondary"
                           >

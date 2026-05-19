@@ -7,6 +7,7 @@ import {
   renameTrackerAction,
   setChartTypeAction,
 } from "@/app/(app)/trackers/actions";
+import { confirm } from "@/lib/stores/confirm-store";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -51,8 +52,13 @@ export function TrackerSettings({ trackerId, trackerName, chartType }: Props) {
     });
   }
 
-  function archive() {
-    if (!confirm(`Archive ${trackerName}? You can recover it from settings later.`)) return;
+  async function archive() {
+    const ok = await confirm({
+      title: `Archive ${trackerName}?`,
+      description: "Entries stay in the database; the tracker just stops showing on /routines. You can recover it from settings later.",
+      confirmLabel: "Archive",
+    });
+    if (!ok) return;
     const fd = new FormData();
     fd.set("trackerId", trackerId);
     startTransition(async () => {

@@ -45,6 +45,7 @@ export async function renameChat(chatId: string, title: string) {
     .eq("user_id", user.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/chat");
+  revalidatePath("/chat/[id]", "page");
   return { ok: true };
 }
 
@@ -53,7 +54,10 @@ export async function deleteChat(chatId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
-  // If this was the current chat, clear the pointer first
+  // Schema-side safety net (verified): messages.chat_id is ON DELETE CASCADE
+  // and profiles.current_chat_id is ON DELETE SET NULL. The explicit clear
+  // below is belt-and-suspenders so we don't depend on FK rules silently
+  // changing in a future migration.
   const { data: profile } = await supabase
     .from("profiles")
     .select("current_chat_id")
@@ -63,7 +67,6 @@ export async function deleteChat(chatId: string) {
     await supabase.from("profiles").update({ current_chat_id: null }).eq("id", user.id);
   }
 
-  // Cascade drops messages by FK on chat_id
   const { error } = await supabase
     .from("chats")
     .delete()
@@ -71,7 +74,12 @@ export async function deleteChat(chatId: string) {
     .eq("user_id", user.id);
   if (error) return { ok: false, error: error.message };
 
+  // The sidebar lives on /chat/[id] (the dynamic segment), not on bare /chat.
+  // Previously we only revalidated /chat — so the sidebar shown on a thread
+  // page kept the deleted row visible until a hard reload, which read as
+  // "delete is broken". revalidate both paths now.
   revalidatePath("/chat");
+  revalidatePath("/chat/[id]", "page");
   return { ok: true };
 }
 
