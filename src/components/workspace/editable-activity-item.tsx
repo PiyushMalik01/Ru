@@ -6,30 +6,18 @@ import { cn } from "@/lib/utils";
 import { removeFromWorkspace } from "@/app/(app)/chat/workspace-actions";
 import type { WorkspaceActivityItem } from "@/lib/queries/workspace";
 import { useRouter } from "next/navigation";
+import { useRelativeTime } from "@/lib/hooks/use-relative-time";
 
 interface Props {
   workspaceId: string;
   activity: WorkspaceActivityItem;
 }
 
-function relativeTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const diff = Date.now() - d.getTime();
-  const mins = Math.round(diff / 60_000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 export function EditableActivityItem({ workspaceId, activity }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [removed, setRemoved] = useState(false);
+  const when = useRelativeTime(activity.timestamp);
 
   if (removed) return null;
 
@@ -61,7 +49,7 @@ export function EditableActivityItem({ workspaceId, activity }: Props) {
       </div>
 
       <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-        {activity.category} · {relativeTime(activity.timestamp)}
+        {activity.category} · {when}
       </div>
 
       <button

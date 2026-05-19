@@ -17,6 +17,7 @@ import {
   archiveWorkspace,
 } from "@/app/(app)/chat/workspace-actions";
 import { confirm } from "@/lib/stores/confirm-store";
+import { RelativeTime } from "@/components/app-shell/relative-time";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,19 +39,11 @@ function weekdayLabel(): string {
   return new Date().toLocaleDateString("en-US", { weekday: "long" });
 }
 
-function ageLabel(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const diff = Date.now() - d.getTime();
-  const mins = Math.round(diff / 60_000);
-  if (mins < 60) return mins < 1 ? "just now" : `${mins}m old`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h old`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d old`;
-  const weeks = Math.round(days / 7);
-  return `${weeks}w old`;
-}
+// ageLabel was inlined here using Date.now() in render, which gives a
+// hydration mismatch when the server's "now" and the client's "now" round
+// to different buckets. Replaced with the <RelativeTime> component which
+// renders a stable absolute-date fallback during SSR and upgrades after
+// mount.
 
 export function WorkspaceHeader({
   workspaces,
@@ -155,7 +148,8 @@ export function WorkspaceHeader({
                 <span className="text-foreground/80">{itemCount}</span>{" "}
                 {itemCount === 1 ? "item" : "items"}
                 <span className="mx-1.5 opacity-40">·</span>
-                {ageLabel(currentWorkspace.created_at)}
+                <RelativeTime iso={currentWorkspace.created_at} />
+                {" old"}
               </>
             ) : (
               <>What&rsquo;s on for {weekdayLabel().toLowerCase()}.</>

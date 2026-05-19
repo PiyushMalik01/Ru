@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useRelativeTime } from "@/lib/hooks/use-relative-time";
 
 export interface ActivityCardData {
   id: string;
@@ -10,20 +11,6 @@ export interface ActivityCardData {
   category?: string;
   duration_minutes?: number;
   timestamp?: string;
-}
-
-function relative(ts?: string): string {
-  if (!ts) return "";
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return "";
-  const diff = Date.now() - d.getTime();
-  const m = Math.round(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const days = Math.round(h / 24);
-  return `${days}d ago`;
 }
 
 function formatDuration(min?: number): string {
@@ -38,7 +25,10 @@ function formatDuration(min?: number): string {
 export function ActivityCard({ data }: { data: ActivityCardData }) {
   const [open, setOpen] = useState(false);
   const dur = formatDuration(data.duration_minutes);
-  const rel = relative(data.timestamp);
+  // useRelativeTime renders a stable absolute-date fallback during SSR and
+  // upgrades to "5m ago / 2h ago / 3d ago" after mount — avoids the
+  // Date.now() boundary jitter that produces hydration mismatches.
+  const rel = useRelativeTime(data.timestamp ?? null);
 
   return (
     <button

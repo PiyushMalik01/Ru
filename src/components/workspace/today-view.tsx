@@ -8,6 +8,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RelativeTime } from "@/components/app-shell/relative-time";
 import type { TodayBundle } from "@/lib/queries/workspace";
 import { toggleTaskCompleteInWorkspace } from "@/app/(app)/chat/workspace-actions";
 import { toggleRoutineToday } from "@/app/(app)/routines/actions";
@@ -39,19 +40,6 @@ function formatRoutineTime(t: string | null): string | null {
   const period = h >= 12 ? "pm" : "am";
   const hour12 = h % 12 || 12;
   return `${hour12}:${String(m ?? 0).padStart(2, "0")}${period}`;
-}
-
-function relativeTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const diff = Date.now() - d.getTime();
-  const mins = Math.round(diff / 60_000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
 }
 
 const priorityDot: Record<string, string> = {
@@ -114,7 +102,7 @@ export function TodayView({ bundle }: Props) {
                 {a.activity}
               </div>
               <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                {a.category} · {relativeTime(a.timestamp)}
+                {a.category} · <RelativeTime iso={a.timestamp} />
               </div>
             </div>
           ))}

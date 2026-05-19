@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { CheckCircle2, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toggleTaskComplete } from "@/app/(app)/tasks/actions";
@@ -48,8 +48,18 @@ export function TaskRow({ id, title, status, priority, dueAt, tags, highlightTod
   const [optimisticDone, setOptimisticDone] = useState(status === "completed");
   const [pending, startTransition] = useTransition();
 
-  // Capture "now" once at mount so render stays pure across re-renders.
-  const [mountedAt] = useState(() => Date.now());
+  // "now" must be the SAME value on SSR and on the client's first render —
+  // otherwise formatDue can fall into different buckets ("2h" vs "3h") and
+  // trigger a hydration mismatch. Strategy: initialize mountedAt to the
+  // task's due time on first render (so the relative label collapses to a
+  // stable absolute date via formatDue's fallback), then bump to actual
+  // Date.now() in a useEffect after mount.
+  const [mountedAt, setMountedAt] = useState<number>(() =>
+    dueAt ? new Date(dueAt).getTime() : 0,
+  );
+  useEffect(() => {
+    setMountedAt(Date.now());
+  }, []);
 
   function onToggle() {
     setOptimisticDone((v) => !v);
