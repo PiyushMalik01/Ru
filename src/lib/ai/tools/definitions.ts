@@ -272,6 +272,208 @@ export const TOOL_DEFINITIONS: NormalizedTool[] = [
       required: ["tracker", "action"],
     },
   },
+  {
+    name: "delete_tracker_entry",
+    description:
+      "Remove an entry from a tracker. Default is the most recent entry. Use when the user says 'scratch that last run', 'undo my last log', etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        tracker: { type: "string", description: "Tracker name or id." },
+        entry_id: { type: "string", description: "Specific entry UUID. Omit to delete the latest entry." },
+      },
+    },
+  },
+  {
+    name: "complete_reminder",
+    description: "Dismiss a reminder — the user has handled it or doesn't need the nudge anymore.",
+    parameters: {
+      type: "object",
+      properties: {
+        reminder: { type: "string", description: "Reminder title (fuzzy) or id." },
+      },
+      required: ["reminder"],
+    },
+  },
+  {
+    name: "snooze_reminder",
+    description:
+      "Push a reminder forward in time. Pass either snooze_minutes (relative) OR new_remind_at (absolute ISO 8601).",
+    parameters: {
+      type: "object",
+      properties: {
+        reminder: { type: "string", description: "Reminder title (fuzzy) or id." },
+        snooze_minutes: { type: "number", description: "Minutes to add. Use 15/30/60/etc." },
+        new_remind_at: { type: "string", description: "Absolute new fire time (ISO 8601)." },
+      },
+      required: ["reminder"],
+    },
+  },
+  {
+    name: "modify_reminder",
+    description: "Change a reminder's title, fire time, or recurrence. Pass updates as a partial object.",
+    parameters: {
+      type: "object",
+      properties: {
+        reminder: { type: "string", description: "Reminder title (fuzzy) or id." },
+        updates: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            remind_at: { type: "string", description: "ISO 8601" },
+            is_recurring: { type: "boolean" },
+            recurrence_rule: { type: "string" },
+          },
+        },
+      },
+      required: ["reminder", "updates"],
+    },
+  },
+  {
+    name: "delete_reminder",
+    description: "Permanently delete a reminder. Use when the user explicitly says 'delete' or 'remove'.",
+    parameters: {
+      type: "object",
+      properties: {
+        reminder: { type: "string", description: "Reminder title (fuzzy) or id." },
+      },
+      required: ["reminder"],
+    },
+  },
+  {
+    name: "delete_task",
+    description: "Permanently delete a task. Use ONLY when the user says delete/remove — not for completing.",
+    parameters: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        task_description: { type: "string", description: "Natural description for fuzzy match." },
+      },
+    },
+  },
+  {
+    name: "delete_routine",
+    description:
+      "Permanently delete a routine. Use sparingly — for 'stop nudging me about this for now', modify_routine to set is_active=false instead.",
+    parameters: {
+      type: "object",
+      properties: {
+        routine_id: { type: "string" },
+        routine_description: { type: "string", description: "Natural description for fuzzy match." },
+      },
+    },
+  },
+  {
+    name: "skip_routine_today",
+    description:
+      "Mark a routine as skipped for today without breaking the streak record. Use when the user says 'taking a rest day from X' or 'skip my morning run today'.",
+    parameters: {
+      type: "object",
+      properties: {
+        routine_id: { type: "string" },
+        routine_description: { type: "string" },
+        reason: { type: "string", description: "Optional note ('rest day', 'sick', etc.)" },
+      },
+    },
+  },
+  {
+    name: "modify_activity",
+    description: "Edit a recently logged activity — fix the title, category, duration, or timestamp.",
+    parameters: {
+      type: "object",
+      properties: {
+        activity: { type: "string", description: "Activity title (fuzzy) or id." },
+        updates: {
+          type: "object",
+          properties: {
+            activity: { type: "string" },
+            category: { type: "string" },
+            duration_minutes: { type: "number" },
+            timestamp: { type: "string", description: "ISO 8601" },
+            metadata: { type: "object", additionalProperties: true },
+          },
+        },
+      },
+      required: ["activity", "updates"],
+    },
+  },
+  {
+    name: "delete_activity",
+    description: "Remove a mis-logged activity. Use when the user says 'scratch that' or 'I didn't actually do X'.",
+    parameters: {
+      type: "object",
+      properties: {
+        activity: { type: "string", description: "Activity title (fuzzy) or id." },
+      },
+      required: ["activity"],
+    },
+  },
+  {
+    name: "rename_workspace",
+    description: "Rename a plan/workspace. Use when the user says 'call this X' or 'rename my launch plan to Y'.",
+    parameters: {
+      type: "object",
+      properties: {
+        workspace: { type: "string", description: "Plan title (fuzzy) or id." },
+        new_title: { type: "string" },
+      },
+      required: ["workspace", "new_title"],
+    },
+  },
+  {
+    name: "archive_workspace",
+    description: "Archive a plan so it stops showing on /plans. Items stay; the plan is just hidden.",
+    parameters: {
+      type: "object",
+      properties: {
+        workspace: { type: "string", description: "Plan title (fuzzy) or id." },
+      },
+      required: ["workspace"],
+    },
+  },
+  {
+    name: "update_profile",
+    description:
+      "Change the user's profile via voice/chat — display name, timezone, or preferences. Whitelisted fields only.",
+    parameters: {
+      type: "object",
+      properties: {
+        updates: {
+          type: "object",
+          properties: {
+            display_name: { type: "string" },
+            timezone: { type: "string", description: "IANA timezone, e.g. America/Los_Angeles." },
+            preferences: { type: "object", additionalProperties: true },
+          },
+        },
+      },
+      required: ["updates"],
+    },
+  },
+  {
+    name: "rename_chat",
+    description:
+      "Rename a chat thread. Pass 'current' (or omit) to rename this chat, or a search hint to find another.",
+    parameters: {
+      type: "object",
+      properties: {
+        chat: { type: "string", description: "'current', a chat title (fuzzy), or id. Defaults to current." },
+        new_title: { type: "string" },
+      },
+      required: ["new_title"],
+    },
+  },
+  {
+    name: "archive_chat",
+    description:
+      "Archive a chat thread so it stops showing in the sidebar. Pass 'current' to archive this chat.",
+    parameters: {
+      type: "object",
+      properties: {
+        chat: { type: "string", description: "'current', a chat title (fuzzy), or id. Defaults to current." },
+      },
+    },
+  },
 ];
 
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name);

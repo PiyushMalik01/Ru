@@ -16,6 +16,19 @@ import { closeWorkspace } from "./handlers/close-workspace";
 import { createTracker } from "./handlers/create-tracker";
 import { logTrackerEntry } from "./handlers/log-tracker-entry";
 import { updateTracker } from "./handlers/update-tracker";
+import { deleteTrackerEntry } from "./handlers/delete-tracker-entry";
+import {
+  completeReminder,
+  snoozeReminder,
+  modifyReminder,
+  deleteReminder,
+} from "./handlers/reminder-mutations";
+import { deleteTask } from "./handlers/delete-task";
+import { deleteRoutine, skipRoutineToday } from "./handlers/routine-mutations";
+import { modifyActivity, deleteActivity } from "./handlers/activity-mutations";
+import { renameWorkspace, archiveWorkspace } from "./handlers/workspace-mutations";
+import { updateProfile } from "./handlers/update-profile";
+import { renameChat, archiveChat } from "./handlers/chat-mutations";
 
 export interface ToolContext {
   supabase: SupabaseClient<Database>;
@@ -48,6 +61,21 @@ const HANDLERS: Record<string, Handler> = {
   create_tracker: createTracker,
   log_tracker_entry: logTrackerEntry,
   update_tracker: updateTracker,
+  delete_tracker_entry: deleteTrackerEntry,
+  complete_reminder: completeReminder,
+  snooze_reminder: snoozeReminder,
+  modify_reminder: modifyReminder,
+  delete_reminder: deleteReminder,
+  delete_task: deleteTask,
+  delete_routine: deleteRoutine,
+  skip_routine_today: skipRoutineToday,
+  modify_activity: modifyActivity,
+  delete_activity: deleteActivity,
+  rename_workspace: renameWorkspace,
+  archive_workspace: archiveWorkspace,
+  update_profile: updateProfile,
+  rename_chat: renameChat,
+  archive_chat: archiveChat,
 };
 
 export async function executeTool(
