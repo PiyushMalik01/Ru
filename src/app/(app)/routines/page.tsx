@@ -8,7 +8,9 @@ import {
   type Tracker,
 } from "@/lib/queries/trackers";
 import { RoutineRow } from "@/components/dashboard/routine-row";
-import { TrackerListCard } from "@/components/trackers/tracker-list-card";
+import { TrackerRow } from "@/components/trackers/tracker-row";
+
+export const dynamic = "force-dynamic";
 
 type BucketKey = "morning" | "midday" | "afternoon" | "evening" | "anytime";
 
@@ -194,9 +196,9 @@ export default async function RoutinesPage() {
             — and a tracker will appear here.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+          <div>
             {trackerData.map((t) => (
-              <TrackerListCard
+              <TrackerRow
                 key={t.tracker.id}
                 tracker={t.tracker}
                 stats={t.stats}

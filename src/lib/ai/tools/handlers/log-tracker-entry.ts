@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import type { ToolContext, ToolOutcome } from "../executor";
 import { coerceFields, coerceValues, findTracker } from "./tracker-helpers";
 
@@ -46,6 +47,11 @@ export async function logTrackerEntry(
     .single();
 
   if (error || !data) return { ok: false, message: error?.message ?? "insert failed" };
+
+  try {
+    revalidatePath("/routines");
+    revalidatePath(`/trackers/${tracker.id}`);
+  } catch {}
 
   return {
     ok: true,

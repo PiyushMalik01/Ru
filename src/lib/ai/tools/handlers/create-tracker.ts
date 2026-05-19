@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import type { ToolContext, ToolOutcome } from "../executor";
 import { coerceFields } from "./tracker-helpers";
 
@@ -48,6 +49,9 @@ export async function createTracker(
     }
     return { ok: false, message: error?.message ?? "insert failed" };
   }
+
+  // Bust the routines page cache so the new tracker shows up immediately.
+  try { revalidatePath("/routines"); } catch {}
 
   return {
     ok: true,

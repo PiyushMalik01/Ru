@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import type { ToolContext, ToolOutcome } from "../executor";
 import { coerceFields, findTracker, normalizeKey, type RawField } from "./tracker-helpers";
 
@@ -141,6 +142,10 @@ function outcome(
   fields: RawField[],
   message: string,
 ): ToolOutcome {
+  try {
+    revalidatePath("/routines");
+    revalidatePath(`/trackers/${id}`);
+  } catch {}
   return {
     ok: true,
     message,
