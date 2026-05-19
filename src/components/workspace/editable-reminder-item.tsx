@@ -18,11 +18,11 @@ function formatRemind(iso: string): string {
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   const time = d
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
     .toLowerCase()
     .replace(" ", "");
   if (sameDay) return `today ${time}`;
-  const day = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${day} ${time}`;
 }
 

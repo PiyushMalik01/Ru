@@ -106,7 +106,7 @@ function EntryView({ data }: { data: TrackerEntryCard }) {
       value: data.values[f.key],
     }));
 
-  const when = new Date(data.entered_at).toLocaleString([], {
+  const when = new Date(data.entered_at).toLocaleString("en-US", {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",

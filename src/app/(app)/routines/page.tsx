@@ -83,9 +83,9 @@ export default async function RoutinesPage() {
   const doneToday = routines.filter((r) => r.todayCompleted).length;
 
   const today = new Date();
-  const dayName = today.toLocaleDateString([], { weekday: "long" }).toLowerCase();
+  const dayName = today.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
   const dateStr = today
-    .toLocaleDateString([], { month: "short", day: "numeric" })
+    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
     .toLowerCase();
 
   return (

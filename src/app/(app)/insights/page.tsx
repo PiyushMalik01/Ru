@@ -16,14 +16,14 @@ function formatRange(startIso: string, endIso: string): string {
   const end = new Date(endIso + "T00:00:00");
   const sameYear = start.getFullYear() === end.getFullYear();
   const startStr = start
-    .toLocaleDateString([], {
+    .toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: sameYear ? undefined : "numeric",
     })
     .toUpperCase();
   const endStr = end
-    .toLocaleDateString([], {
+    .toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",

@@ -130,8 +130,8 @@ export default async function TasksPage({
   const head = (() => {
     const d = new Date();
     return {
-      weekday: d.toLocaleDateString([], { weekday: "long" }).toUpperCase(),
-      date: d.toLocaleDateString([], { day: "numeric", month: "short" }).toUpperCase(),
+      weekday: d.toLocaleDateString("en-US", { weekday: "long" }).toUpperCase(),
+      date: d.toLocaleDateString("en-US", { day: "numeric", month: "short" }).toUpperCase(),
     };
   })();
 
@@ -198,7 +198,7 @@ export default async function TasksPage({
         <Section
           eyebrow="today"
           sublabel={new Date()
-            .toLocaleDateString([], { month: "short", day: "numeric" })
+            .toLocaleDateString("en-US", { month: "short", day: "numeric" })
             .toLowerCase()}
           count={today.length}
         >

@@ -34,7 +34,7 @@ function formatDue(due: string | null): string {
   const isTomorrow = d.toDateString() === tomorrow.toDateString();
   if (sameDay) return "today";
   if (isTomorrow) return "tomorrow";
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function toInputDate(d: string | null): string {

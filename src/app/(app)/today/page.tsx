@@ -16,9 +16,9 @@ export const dynamic = "force-dynamic";
 
 function masthead(): { weekday: string; date: string; iso: string } {
   const d = new Date();
-  const weekday = d.toLocaleDateString([], { weekday: "long" }).toUpperCase();
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long" }).toUpperCase();
   const date = d
-    .toLocaleDateString([], { day: "numeric", month: "short" })
+    .toLocaleDateString("en-US", { day: "numeric", month: "short" })
     .toUpperCase();
   const iso = d.toISOString().slice(0, 10);
   return { weekday, date, iso };

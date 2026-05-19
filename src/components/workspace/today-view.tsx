@@ -25,11 +25,11 @@ function formatDue(due: string | null): string {
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) {
     return d
-      .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
       .toLowerCase()
       .replace(" ", "");
   }
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatRoutineTime(t: string | null): string | null {

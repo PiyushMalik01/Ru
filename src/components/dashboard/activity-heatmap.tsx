@@ -16,7 +16,7 @@ function bucketOpacity(count: number, max: number): string {
 
 function formatDateTitle(iso: string): string {
   const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 /**

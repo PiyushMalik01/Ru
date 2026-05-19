@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 function formatNow(d: Date): string {
   return d
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
     .toLowerCase()
     .replace(" ", "");
 }

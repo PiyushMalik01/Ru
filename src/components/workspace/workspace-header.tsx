@@ -35,7 +35,7 @@ interface Props {
 }
 
 function weekdayLabel(): string {
-  return new Date().toLocaleDateString([], { weekday: "long" });
+  return new Date().toLocaleDateString("en-US", { weekday: "long" });
 }
 
 function ageLabel(iso: string): string {

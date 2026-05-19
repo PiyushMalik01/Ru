@@ -242,7 +242,7 @@ export function formatWhen(iso: string | null, nowMs: number = Date.now()): stri
     d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
   const time = hasTime
     ? d
-        .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+        .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
         .toLowerCase()
         .replace(" ", "")
     : "";
@@ -251,14 +251,14 @@ export function formatWhen(iso: string | null, nowMs: number = Date.now()): stri
   if (dayDiff === 1)  return hasTime ? `tomorrow ${time}` : "tomorrow";
   if (dayDiff === -1) return hasTime ? `yesterday ${time}` : "yesterday";
   if (dayDiff > 1 && dayDiff <= 6) {
-    const wd = d.toLocaleDateString([], { weekday: "short" }).toLowerCase();
+    const wd = d.toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
     return hasTime ? `${wd} ${time}` : wd;
   }
   if (dayDiff < -1 && dayDiff >= -6) {
     return `${Math.abs(dayDiff)}d ago`;
   }
   return d
-    .toLocaleDateString([], { month: "short", day: "numeric" })
+    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
     .toLowerCase();
 }
 

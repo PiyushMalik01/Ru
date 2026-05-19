@@ -26,8 +26,8 @@ async function createPlan() {
 function masthead(): { weekday: string; date: string } {
   const d = new Date();
   return {
-    weekday: d.toLocaleDateString([], { weekday: "long" }).toUpperCase(),
-    date: d.toLocaleDateString([], { day: "numeric", month: "short" }).toUpperCase(),
+    weekday: d.toLocaleDateString("en-US", { weekday: "long" }).toUpperCase(),
+    date: d.toLocaleDateString("en-US", { day: "numeric", month: "short" }).toUpperCase(),
   };
 }
 

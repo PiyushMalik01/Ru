@@ -18,9 +18,9 @@ function formatRemind(t?: string | null): string {
   if (Number.isNaN(d.getTime())) return "";
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   if (sameDay) return time;
-  const day = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${day} · ${time}`;
 }
 

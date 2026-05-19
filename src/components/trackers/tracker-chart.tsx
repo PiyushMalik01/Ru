@@ -34,7 +34,7 @@ export function TrackerChart({ entries, primary, chartType, color }: Props) {
       points.push({
         t: new Date(e.entered_at).getTime(),
         v: raw,
-        label: new Date(e.entered_at).toLocaleDateString([], {
+        label: new Date(e.entered_at).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
         }),

@@ -78,7 +78,7 @@ function EntryRow({
 
   if (hidden) return null;
 
-  const when = new Date(entry.entered_at).toLocaleString([], {
+  const when = new Date(entry.entered_at).toLocaleString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",

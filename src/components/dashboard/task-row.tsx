@@ -32,7 +32,7 @@ function formatDue(due: string | null, nowMs: number): { label: string; overdue:
   const startOfDue = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const dayDiff = Math.round((startOfDue.getTime() - startOfToday.getTime()) / msDay);
 
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
   const overdue = d.getTime() < now.getTime();
 
   if (dayDiff === 0) return { label: `today ${time}`, overdue };
@@ -40,7 +40,7 @@ function formatDue(due: string | null, nowMs: number): { label: string; overdue:
   if (dayDiff === -1) return { label: `yesterday ${time}`, overdue };
   if (dayDiff > 1 && dayDiff <= 7) return { label: `in ${dayDiff} days`, overdue };
   if (dayDiff < -1 && dayDiff >= -7) return { label: `${Math.abs(dayDiff)}d ago`, overdue };
-  const absLabel = d.toLocaleDateString([], { month: "short", day: "numeric" }).toLowerCase();
+  const absLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toLowerCase();
   return { label: absLabel, overdue };
 }
 
