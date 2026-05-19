@@ -2,16 +2,17 @@
 
 // Circular-reveal theme toggle.
 //
-// Built on next-themes for state, the View Transitions API for the radial
-// clipPath animation that radiates from the button's center. Both old and
-// new theme stack during the transition; the new layer clips open like an
-// expanding circular aperture over the old.
+// State comes from our home-rolled theme provider (src/lib/theme), and the
+// transition uses the View Transitions API for the radial clipPath animation
+// that radiates from the button's center. Both old and new theme stack during
+// the transition; the new layer clips open like an expanding circular aperture
+// over the old.
 //
 // Fallbacks gracefully on browsers that don't support startViewTransition.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sun, Moon } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {

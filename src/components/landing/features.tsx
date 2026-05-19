@@ -717,8 +717,35 @@ export function Features() {
                 dotColor: "#0a3438",
                 minH: "300px",
               },
+              Trackers: {
+                // Sits next to Routines on the same row — purple ink card with
+                // lime headings, mirroring the platform's Insights/Plans entity
+                // accent. Slight counter-rotation to break the bento grid.
+                span: "md:col-span-6 md:row-span-1",
+                bg: "#2a2270",
+                radius: "rounded-[32px]",
+                headingColor: "#d9fb60",
+                descColor: "#c8c3ff",
+                tagColor: "#1fd7df",
+                dotColor: "#d9fb60",
+                rotate: "rotate(0.6deg)",
+                minH: "300px",
+              },
             };
-            const L = layouts[feat.tag];
+            // Fallback to a neutral layout if a new feature is added without
+            // wiring its bento slot — keeps the page from blowing up during
+            // build. The default reads as a plain white card; visually
+            // distinct enough to spot in QA.
+            const L = layouts[feat.tag] ?? {
+              span: "md:col-span-6 md:row-span-1",
+              bg: "#ffffff",
+              radius: "rounded-2xl",
+              headingColor: "#0d1f15",
+              descColor: "#5a6258",
+              tagColor: "#1a5632",
+              dotColor: "#1a5632",
+              minH: "300px",
+            };
 
             return (
               <ScrollReveal
