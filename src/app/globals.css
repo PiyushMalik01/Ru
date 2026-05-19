@@ -272,6 +272,26 @@ h3 { font-size: 1.25rem; line-height: 1.2; }
   animation: ru-pill-pulse 1.6s ease-in-out infinite;
 }
 
+/* Listening waveform — used by FloatingPill when STT is active. Each bar
+   scales its own height with a staggered animation-delay so the row reads
+   as a soft equalizer, not a clinical FFT plot. */
+@keyframes ru-wave {
+  0%, 100% { transform: scaleY(0.55); }
+  50% { transform: scaleY(1); }
+}
+
+/* Voice-mode placeholder — the "Tap to speak" label in the pill gets a
+   gentle breath cycle so the user knows the system is alive and waiting,
+   without competing with the actual listening waveform. */
+@keyframes ru-voice-breath {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.ru-voice-placeholder {
+  animation: ru-voice-breath 2.6s ease-in-out infinite;
+}
+
 /* Scrollbars are hidden globally. Content still scrolls — the user
    asked explicitly to never see scrollbars in workspace panels. */
 * {
