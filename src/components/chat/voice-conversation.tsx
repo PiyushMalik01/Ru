@@ -64,6 +64,17 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const finalBufRef = useRef<string>("");
   const stoppingRef = useRef(false);
   const restartTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The restart-mic effect previously held silentSince in a closure local.
+  // Whenever VoiceConversation re-rendered (which happens a lot — phase
+  // changes, Ru store updates), startListening's useCallback ref changed,
+  // so the effect cleanup tore down the interval and the silentSince
+  // accumulator reset to null. It never reached 500ms — mic never reopened,
+  // which read as "Ru is thinking forever after her reply".
+  // Hoist into a ref so it survives effect re-runs.
+  const silentSinceRef = useRef<number | null>(null);
+  // Mirror the latest startListening into a ref so effects can call it
+  // without listing it as a dep (and without using a stale closure).
+  const startListeningRef = useRef<() => Promise<void>>(async () => undefined);
 
   const stopSTT = useCallback(() => {
     sttRef.current?.stop();
@@ -127,16 +138,25 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     }
   }, [abort, commitUtterance, stopSTT]);
 
-  // Boot STT on mount; tear everything down on unmount.
+  // Keep the ref pointed at the freshest startListening every render so the
+  // mount + restart effects can call through it without depending on the
+  // function's identity.
   useEffect(() => {
-    void startListening();
+    startListeningRef.current = startListening;
+  });
+
+  // Boot STT once on mount; tear everything down on unmount. Empty deps so
+  // we never accidentally re-mount because some upstream ref changed.
+  useEffect(() => {
+    void startListeningRef.current();
     return () => {
       stoppingRef.current = true;
       stopSTT();
       if (restartTimerRef.current) clearInterval(restartTimerRef.current);
       ruClear();
     };
-  }, [startListening, stopSTT, ruClear]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Phase ← chat state. Drives both the local indicator AND Ru's face.
   useEffect(() => {
@@ -162,25 +182,34 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   // After Ru finishes speaking: wait for the audio buffer to be silent for
   // 500ms CONTINUOUSLY, then re-open the mic. Single false readings happen
   // in the gaps between synthesized chunks and would re-open too early.
+  //
+  // CRITICAL: silentSince lives in a ref (not the closure) and the effect
+  // only depends on `status`. If we put startListening in the deps, every
+  // re-render would tear down the interval, reset silentSince, and the mic
+  // would never reopen — which is exactly what "Ru is thinking forever
+  // after the reply" looked like.
   useEffect(() => {
     if (stoppingRef.current) return;
     if (status !== "idle") return;
     if (sttRef.current) return;
 
-    let silentSince: number | null = null;
+    silentSinceRef.current = null;
     restartTimerRef.current = setInterval(() => {
       const playing = isTTSPlaying();
       if (playing) {
-        silentSince = null;
+        silentSinceRef.current = null;
         return;
       }
-      if (silentSince === null) silentSince = Date.now();
-      if (Date.now() - silentSince >= 500) {
+      if (silentSinceRef.current === null) {
+        silentSinceRef.current = Date.now();
+      }
+      if (Date.now() - silentSinceRef.current >= 500) {
         if (restartTimerRef.current) {
           clearInterval(restartTimerRef.current);
           restartTimerRef.current = null;
         }
-        void startListening();
+        silentSinceRef.current = null;
+        void startListeningRef.current();
       }
     }, 80);
 
@@ -190,7 +219,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
         restartTimerRef.current = null;
       }
     };
-  }, [status, startListening]);
+  }, [status]);
 
   function interruptRu() {
     if (status === "streaming" || isTTSPlaying()) {
