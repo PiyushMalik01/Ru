@@ -70,13 +70,17 @@ export function SheetRow({ row, nowMs }: Props) {
   return (
     <div
       className={cn(
-        "ru-strip group grid items-center gap-4 pl-5 pr-4 transition-colors",
+        "group grid items-center gap-4 pl-5 pr-4 transition-[box-shadow,background-color]",
         "border-b border-[var(--hairline-soft)] hover:bg-[var(--tint-hover)]",
       )}
       style={{
         gridTemplateColumns:
           "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
         minHeight: 48,
+        // 3px left strip in the row's entity colour. We don't use the global
+        // .ru-strip class here because it draws a 4px inset; the Sheet table
+        // wants a tighter typographic rule per spec.
+        boxShadow: `inset 3px 0 0 0 ${ENTITY_COLOR_VAR[row.kind as keyof typeof ENTITY_COLOR_VAR] ?? "transparent"}`,
         ["--entity-color" as string]: ENTITY_COLOR_VAR[row.kind as keyof typeof ENTITY_COLOR_VAR] ?? "transparent",
       }}
     >

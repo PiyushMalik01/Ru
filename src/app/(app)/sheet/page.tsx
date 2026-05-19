@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   fetchTasks,
   fetchRoutinesWithToday,
+  fetchSheetTaskStats,
 } from "@/lib/queries/dashboard";
 import { listWorkspaces } from "@/lib/queries/workspace";
 import { fetchCalendarItems } from "@/lib/queries/calendar";
@@ -13,10 +14,16 @@ import {
   type SheetFilter,
   type SheetView,
 } from "@/components/sheet/sheet-controls";
+import { type SheetRowData } from "@/components/sheet/sheet-row";
 import {
-  SheetRow,
-  type SheetRowData,
-} from "@/components/sheet/sheet-row";
+  SheetStatsStrip,
+  type SheetStatusFilter,
+} from "@/components/sheet/sheet-stats-strip";
+import {
+  SheetTable,
+  type SortKey,
+  type SortDir,
+} from "@/components/sheet/sheet-table";
 import { CalendarView } from "@/components/sheet/calendar-view";
 import { TimelineView } from "@/components/sheet/timeline-view";
 import type { ItemKind, ItemStatus } from "@/components/app-shell/primitives";
@@ -35,6 +42,20 @@ function parseView(v: string | string[] | undefined): SheetView {
   const s = Array.isArray(v) ? v[0] : v;
   if (s === "calendar" || s === "timeline") return s;
   return "table";
+}
+function parseStatus(v: string | string[] | undefined): SheetStatusFilter {
+  const s = Array.isArray(v) ? v[0] : v;
+  if (s === "open" || s === "today" || s === "overdue" || s === "completed") return s;
+  return "all";
+}
+function parseSort(v: string | string[] | undefined): SortKey {
+  const s = Array.isArray(v) ? v[0] : v;
+  if (s === "title" || s === "status") return s;
+  return "due_at"; // natural default
+}
+function parseDir(v: string | string[] | undefined): SortDir {
+  const s = Array.isArray(v) ? v[0] : v;
+  return s === "desc" ? "desc" : "asc";
 }
 function parseRange(v: string | string[] | undefined): "week" | "day" {
   const s = Array.isArray(v) ? v[0] : v;
@@ -77,6 +98,9 @@ export default async function SheetPage({
   const view = parseView(sp.view);
   const range = parseRange(sp.range);
   const anchor = parseAnchor(sp.date);
+  const status = parseStatus(sp.status);
+  const sortKey = parseSort(sp.sort);
+  const sortDir = parseDir(sp.dir);
 
   // ── CALENDAR view branches off early. It needs a different data shape and
   // doesn't share the row-list logic at all.
@@ -124,8 +148,16 @@ export default async function SheetPage({
   }
 
   // ── Default: TABLE view (the canonical lens).
-  const [tasks, routines, workspaces, activitiesRes, remindersRes] = await Promise.all([
-    fetchTasks(supabase, user.id, { statuses: ["pending", "in_progress", "missed"] }),
+  // When the user has selected "completed" from the stats strip we also need
+  // completed tasks in the row set; otherwise the table can show only the
+  // open lifecycle states (matching the previous behaviour).
+  const taskStatuses =
+    status === "completed"
+      ? (["pending", "in_progress", "missed", "completed"] as const)
+      : (["pending", "in_progress", "missed"] as const);
+
+  const [tasks, routines, workspaces, activitiesRes, remindersRes, taskStats] = await Promise.all([
+    fetchTasks(supabase, user.id, { statuses: [...taskStatuses] }),
     fetchRoutinesWithToday(supabase, user.id),
     listWorkspaces(supabase, user.id),
     supabase
@@ -142,6 +174,7 @@ export default async function SheetPage({
       .eq("status", "pending")
       .order("remind_at", { ascending: true })
       .limit(50),
+    fetchSheetTaskStats(supabase, user.id),
   ]);
 
   const planById = new Map(workspaces.map((w) => [w.id, w.title]));
@@ -218,18 +251,66 @@ export default async function SheetPage({
     });
   }
 
-  const filtered =
-    filter === "all"
-      ? rows
-      : rows.filter((r) => {
-          if (filter === "tasks")     return r.kind === "task";
-          if (filter === "routines")  return r.kind === "routine";
-          if (filter === "logs")      return r.kind === "activity";
-          if (filter === "reminders") return r.kind === "reminder";
-          return true;
-        });
+  // ── Filter pipeline.
+  // 1. kind filter (from SheetControls) — narrows by entity type.
+  // 2. status filter (from SheetStatsStrip) — narrows by task lifecycle.
+  //    Status only refers to tasks; selecting any task-status implicitly
+  //    restricts the table to task rows.
+  const startOfTodayMs = (() => {
+    const d = new Date(nowMs);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
+  const startOfTomorrowMs = startOfTodayMs + 86400_000;
+  const weekAgoMs = nowMs - 7 * 86400_000;
 
-  filtered.forEach((r, i) => (r.index = i + 1));
+  let working = rows;
+  if (filter !== "all") {
+    working = working.filter((r) => {
+      if (filter === "tasks")     return r.kind === "task";
+      if (filter === "routines")  return r.kind === "routine";
+      if (filter === "logs")      return r.kind === "activity";
+      if (filter === "reminders") return r.kind === "reminder";
+      return true;
+    });
+  }
+  if (status !== "all") {
+    // Find the underlying task row for status logic — we need due_at and
+    // completed_at, which we have on `tasks` but not on SheetRowData.
+    const taskById = new Map(tasks.map((t) => [t.id, t]));
+    working = working.filter((r) => {
+      if (r.kind !== "task") return false;
+      const t = taskById.get(r.id);
+      if (!t) return false;
+      if (status === "open") return t.status === "pending" || t.status === "in_progress";
+      if (status === "completed") {
+        if (t.status !== "completed" || !t.completed_at) return false;
+        return new Date(t.completed_at).getTime() >= weekAgoMs;
+      }
+      if (status === "today") {
+        if (!t.due_at) return false;
+        const d = new Date(t.due_at).getTime();
+        return d >= startOfTodayMs && d < startOfTomorrowMs && t.status !== "completed";
+      }
+      if (status === "overdue") {
+        if (t.status === "completed") return false;
+        if (t.due_at) return new Date(t.due_at).getTime() < nowMs;
+        return t.status === "missed";
+      }
+      return true;
+    });
+  }
+
+  // ── Sort. Stable order: secondary key is the original row order so equal
+  //    keys (e.g. two tasks with no due_at) keep the upstream ordering.
+  const decorated = working.map((r, i) => ({ r, i }));
+  decorated.sort((a, b) => {
+    const cmp = compareRows(a.r, b.r, sortKey);
+    if (cmp !== 0) return sortDir === "asc" ? cmp : -cmp;
+    return a.i - b.i;
+  });
+  const sorted = decorated.map((x) => x.r);
+  sorted.forEach((r, i) => (r.index = i + 1));
 
   const counts = {
     tasks:     rows.filter((r) => r.kind === "task").length,
@@ -242,43 +323,38 @@ export default async function SheetPage({
     <div className="mx-auto w-full max-w-6xl px-6 pt-10 pb-32">
       <SheetMasthead />
 
+      <div className="mt-8">
+        <SheetStatsStrip
+          counts={{
+            open: taskStats.open,
+            dueToday: taskStats.dueToday,
+            completedWeek: taskStats.completedWeek,
+            overdue: taskStats.overdue,
+          }}
+          active={status}
+        />
+      </div>
+
       <div className="mt-10">
         <SheetControls
-          totalCount={filtered.length}
+          totalCount={sorted.length}
           activeFilter={filter}
           activeView={view}
         />
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState filter={filter} />
+      {sorted.length === 0 ? (
+        <EmptyState filter={filter} status={status} />
       ) : (
         <>
-          <div
-            className="sticky top-12 z-20 grid items-center gap-4 bg-background pl-5 pr-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 border-b border-[var(--hairline)]"
-            style={{
-              gridTemplateColumns:
-                "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
-            }}
-          >
-            <span className="text-muted-foreground/30">№</span>
-            <span />
-            <span>title</span>
-            <span>status</span>
-            <span>due · when</span>
-            <span>plan</span>
-            <span>meta</span>
-            <span />
-          </div>
-
-          <div>
-            {filtered.map((r) => (
-              <SheetRow key={`${r.kind}-${r.id}`} row={r} nowMs={nowMs} />
-            ))}
-          </div>
+          <SheetTable
+            rows={sorted}
+            nowMs={nowMs}
+            sort={{ key: sortKey, dir: sortDir }}
+          />
 
           <div className="mt-6 flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground/60">
-            <span>{filtered.length.toString().padStart(3, "0")} visible</span>
+            <span>{sorted.length.toString().padStart(3, "0")} visible</span>
             <span className="text-muted-foreground/30">·</span>
             <span>○ {counts.tasks} tasks</span>
             <span>⟳ {counts.routines} routines</span>
@@ -289,6 +365,32 @@ export default async function SheetPage({
       )}
     </div>
   );
+}
+
+// ── Row comparator. Null-aware: rows without a sort value sink to the bottom
+//    regardless of direction (a printed index reads better that way).
+function compareRows(a: SheetRowData, b: SheetRowData, key: SortKey): number {
+  if (key === "title") {
+    return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+  }
+  if (key === "due_at") {
+    const av = a.whenIso ? new Date(a.whenIso).getTime() : null;
+    const bv = b.whenIso ? new Date(b.whenIso).getTime() : null;
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return av - bv;
+  }
+  // status: ordinal so the comparator is stable across kinds.
+  const order: Record<string, number> = {
+    in_progress: 0,
+    missed: 1,
+    pending: 2,
+    recurring: 3,
+    logged: 4,
+    completed: 5,
+  };
+  return (order[a.status] ?? 99) - (order[b.status] ?? 99);
 }
 
 function SheetMasthead() {
@@ -309,20 +411,41 @@ function SheetMasthead() {
   );
 }
 
-function EmptyState({ filter }: { filter: SheetFilter }) {
+function EmptyState({
+  filter,
+  status,
+}: {
+  filter: SheetFilter;
+  status: SheetStatusFilter;
+}) {
+  // Status filter takes precedence because the user just clicked it — the
+  // message should answer "why is this empty?" in the user's own framing.
   const msg =
-    filter === "tasks"
-      ? "no tasks yet. tell ru what's on your mind."
-      : filter === "routines"
-        ? "no active routines. ru picks them up from your patterns."
-        : filter === "logs"
-          ? "the log is empty. ru fills this in as you live the day."
-          : filter === "reminders"
-            ? "no pending reminders."
-            : "the sheet is empty.";
+    status === "open"
+      ? "Nothing open. The page is clear."
+      : status === "today"
+        ? "Nothing due today. A rare gift."
+        : status === "overdue"
+          ? "Nothing overdue. Right on time."
+          : status === "completed"
+            ? "No tasks finished in the last seven days."
+            : filter === "tasks"
+              ? "No tasks yet. Tell Ru what's on your mind."
+              : filter === "routines"
+                ? "No active routines. Ru picks them up from your patterns."
+                : filter === "logs"
+                  ? "The log is empty. Ru fills this in as you live the day."
+                  : filter === "reminders"
+                    ? "No pending reminders."
+                    : "The sheet is empty.";
   return (
-    <div className="mt-20 py-20 text-center font-mono text-[12px] lowercase tracking-wide text-muted-foreground/70">
-      {msg}
+    <div className="mt-20 py-20 text-center">
+      <p
+        className="font-display italic text-[22px] leading-[1.15] tracking-[-0.01em] text-muted-foreground"
+        style={{ fontStyle: "italic" }}
+      >
+        {msg}
+      </p>
     </div>
   );
 }
