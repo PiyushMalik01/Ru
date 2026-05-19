@@ -150,15 +150,27 @@ export function FinalCta() {
               <p className="text-sm font-medium" style={{ color: "rgba(250,248,245,0.85)" }}>{message}</p>
             )}
 
-            <a
-              href="#"
-              className="text-sm font-medium underline-offset-4 transition-opacity hover:underline"
-              style={{ color: "rgba(217,251,96,0.75)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(217,251,96,1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(217,251,96,0.75)")}
-            >
-              or sign up now →
-            </a>
+            <div className="flex items-center gap-5">
+              <a
+                href="/signup"
+                className="text-sm font-medium underline-offset-4 transition-opacity hover:underline"
+                style={{ color: "rgba(217,251,96,0.85)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(217,251,96,1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(217,251,96,0.85)")}
+              >
+                or sign up now →
+              </a>
+              <span style={{ color: "rgba(217,251,96,0.4)" }}>·</span>
+              <a
+                href="/login"
+                className="text-sm font-medium underline-offset-4 transition-opacity hover:underline"
+                style={{ color: "rgba(217,251,96,0.6)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(217,251,96,1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(217,251,96,0.6)")}
+              >
+                already in? sign in
+              </a>
+            </div>
           </div>
         </ScrollReveal>
       </div>

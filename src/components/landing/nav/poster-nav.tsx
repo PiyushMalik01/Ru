@@ -336,32 +336,45 @@ export function PosterNav() {
                   <path d="M2 5 H 10 M7 2 L 11 5 L 7 8" stroke="#8a847b" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                 </svg>
               </a>
-              <a
-                href="#waitlist"
-                className="group relative mr-14 mt-5 inline-flex items-center gap-2"
-                style={{ color: "#1a5632", fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: "23px", fontWeight: 700 }}
-              >
-                get early access
-                <svg width="22" height="14" viewBox="0 0 22 14" fill="none" aria-hidden="true" className="transition-transform group-hover:translate-x-1">
-                  <path d="M2 7 H 17 M13 2 L 19 7 L 13 12" stroke="#1a5632" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                </svg>
-                <svg
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -bottom-2 -left-3 -right-4"
-                  viewBox="0 0 240 9"
-                  preserveAspectRatio="none"
-                  style={{ height: "7px" }}
+
+              {/* Auth cluster — Sign in is a quiet italic link, Sign up is the
+                  primary CTA with the marker underline. Returning users go
+                  left, new users go to the heavier button. */}
+              <div className="mt-5 mr-2 flex items-baseline gap-5">
+                <a
+                  href="/login"
+                  className="transition-colors hover:text-black"
+                  style={{ color: "#0d1f15", fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: "19px" }}
                 >
-                  <path
-                    d="M3 5 C 50 1, 120 8, 180 3 S 230 6, 237 4"
-                    stroke="#1a5632"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    fill="none"
-                    opacity="0.65"
-                  />
-                </svg>
-              </a>
+                  sign in
+                </a>
+                <a
+                  href="/signup"
+                  className="group relative inline-flex items-center gap-2"
+                  style={{ color: "#1a5632", fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: "23px", fontWeight: 700 }}
+                >
+                  sign up
+                  <svg width="22" height="14" viewBox="0 0 22 14" fill="none" aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+                    <path d="M2 7 H 17 M13 2 L 19 7 L 13 12" stroke="#1a5632" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  </svg>
+                  <svg
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -bottom-2 -left-2 -right-4"
+                    viewBox="0 0 140 9"
+                    preserveAspectRatio="none"
+                    style={{ height: "7px" }}
+                  >
+                    <path
+                      d="M3 5 C 30 1, 70 8, 105 3 S 130 6, 137 4"
+                      stroke="#1a5632"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      fill="none"
+                      opacity="0.65"
+                    />
+                  </svg>
+                </a>
+              </div>
             </div>
 
             {/* Mobile hamburger */}
@@ -401,13 +414,14 @@ export function PosterNav() {
           >
             <a href="#features" onClick={() => setMenuOpen(false)} className="block py-2 text-base font-medium" style={{ color: "#2d2a26" }}>Features</a>
             <a href="#how" onClick={() => setMenuOpen(false)} className="block py-2 text-base font-medium" style={{ color: "#2d2a26" }}>How it works</a>
+            <a href="/login" onClick={() => setMenuOpen(false)} className="block py-2 text-base font-medium" style={{ color: "#2d2a26" }}>Sign in</a>
             <a
-              href="#waitlist"
+              href="/signup"
               onClick={() => setMenuOpen(false)}
               className="mt-3 inline-block rounded-full px-5 py-2.5 text-sm font-semibold"
               style={{ background: "#d9fb60", color: "#1a5632" }}
             >
-              Get early access
+              Sign up
             </a>
           </motion.div>
         )}

@@ -475,7 +475,7 @@ export function Hero() {
           className="mt-8 flex flex-wrap items-center gap-3 md:gap-4"
         >
           <a
-            href="#waitlist"
+            href="/signup"
             className="rounded-full px-6 py-3.5 text-sm font-bold transition-all hover:scale-[1.03] md:px-8 md:py-4 md:text-base"
             style={{ background: "#d9fb60", color: "#1a5632", fontFamily: "var(--font-serif)" }}
           >
