@@ -11,7 +11,13 @@ export interface WorkspaceSummary {
   description: string | null;
   kind: string;
   created_at: string;
+  /** Last time the workspace row itself was touched. */
+  updated_at?: string;
   itemCount: number;
+  /** Settled items (completed tasks + activities). Populated by listWorkspaces. */
+  doneCount?: number;
+  /** Most recent activity within the plan — used for "last touched" display. */
+  lastActivityIso?: string | null;
 }
 
 export interface WorkspaceTaskItem {
@@ -74,10 +80,10 @@ export async function listWorkspaces(
 ): Promise<WorkspaceSummary[]> {
   const { data: workspaces } = await supabase
     .from("workspaces")
-    .select("id, title, description, kind, created_at")
+    .select("id, title, description, kind, created_at, updated_at")
     .eq("user_id", userId)
     .eq("archived", false)
-    .order("created_at", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(50);
 
   if (!workspaces) return [];
@@ -87,18 +93,81 @@ export async function listWorkspaces(
 
   const { data: orderRows } = await supabase
     .from("workspace_item_order")
-    .select("workspace_id")
+    .select("workspace_id, item_kind, item_id")
     .in("workspace_id", ids);
 
   const counts = new Map<string, number>();
+  const taskIdsByWs = new Map<string, string[]>();
+  const activityIdsByWs = new Map<string, string[]>();
+  const allTaskIds: string[] = [];
+  const allActivityIds: string[] = [];
   for (const row of orderRows ?? []) {
     counts.set(row.workspace_id, (counts.get(row.workspace_id) ?? 0) + 1);
+    if (row.item_kind === "task") {
+      if (!taskIdsByWs.has(row.workspace_id)) taskIdsByWs.set(row.workspace_id, []);
+      taskIdsByWs.get(row.workspace_id)!.push(row.item_id);
+      allTaskIds.push(row.item_id);
+    } else if (row.item_kind === "activity") {
+      if (!activityIdsByWs.has(row.workspace_id)) activityIdsByWs.set(row.workspace_id, []);
+      activityIdsByWs.get(row.workspace_id)!.push(row.item_id);
+      allActivityIds.push(row.item_id);
+    }
   }
 
-  return workspaces.map((w) => ({
-    ...w,
-    itemCount: counts.get(w.id) ?? 0,
-  }));
+  // Resolve completion + recency in two parallel batches.
+  const [tasksRes, activitiesRes] = await Promise.all([
+    allTaskIds.length
+      ? supabase
+          .from("tasks")
+          .select("id, status, completed_at, updated_at")
+          .in("id", allTaskIds)
+      : Promise.resolve({ data: [] as { id: string; status: string; completed_at: string | null; updated_at: string }[] }),
+    allActivityIds.length
+      ? supabase
+          .from("activity_log")
+          .select("id, timestamp")
+          .in("id", allActivityIds)
+      : Promise.resolve({ data: [] as { id: string; timestamp: string }[] }),
+  ]);
+
+  const taskById = new Map((tasksRes.data ?? []).map((t) => [t.id, t]));
+  const activityById = new Map((activitiesRes.data ?? []).map((a) => [a.id, a]));
+
+  return workspaces.map((w) => {
+    const taskIds = taskIdsByWs.get(w.id) ?? [];
+    const activityIds = activityIdsByWs.get(w.id) ?? [];
+
+    let doneCount = 0;
+    let lastTouched = new Date(w.updated_at).getTime();
+    for (const tid of taskIds) {
+      const t = taskById.get(tid);
+      if (!t) continue;
+      if (t.status === "completed") doneCount += 1;
+      const ts = t.completed_at
+        ? new Date(t.completed_at).getTime()
+        : new Date(t.updated_at).getTime();
+      if (ts > lastTouched) lastTouched = ts;
+    }
+    for (const aid of activityIds) {
+      const a = activityById.get(aid);
+      if (!a) continue;
+      doneCount += 1; // activities are "settled"
+      const ts = new Date(a.timestamp).getTime();
+      if (ts > lastTouched) lastTouched = ts;
+    }
+
+    return {
+      id: w.id,
+      title: w.title,
+      description: w.description,
+      kind: w.kind,
+      created_at: w.created_at,
+      updated_at: w.updated_at,
+      itemCount: counts.get(w.id) ?? 0,
+      doneCount,
+      lastActivityIso: new Date(lastTouched).toISOString(),
+    };
+  });
 }
 
 export async function getCurrentWorkspaceId(

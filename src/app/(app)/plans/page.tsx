@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listWorkspaces } from "@/lib/queries/workspace";
-import { HairlineProgress, formatAgo } from "@/components/app-shell/primitives";
+import { PlanCard } from "@/components/plans/plan-card";
+import { NewPlanTile } from "@/components/plans/new-plan-tile";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,14 @@ async function createPlan() {
   }
 }
 
+function masthead(): { weekday: string; date: string } {
+  const d = new Date();
+  return {
+    weekday: d.toLocaleDateString([], { weekday: "long" }).toUpperCase(),
+    date: d.toLocaleDateString([], { day: "numeric", month: "short" }).toUpperCase(),
+  };
+}
+
 export default async function PlansPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -30,83 +38,70 @@ export default async function PlansPage() {
 
   const workspaces = await listWorkspaces(supabase, user.id);
   const nowMs = Date.now();
+  const head = masthead();
+
+  const totalItems = workspaces.reduce((s, w) => s + w.itemCount, 0);
+  const totalDone = workspaces.reduce((s, w) => s + (w.doneCount ?? 0), 0);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 pt-10 pb-32 md:pl-16">
-      <header className="flex items-baseline justify-between gap-4">
+    <div className="mx-auto w-full max-w-6xl px-6 pt-10 pb-32">
+      {/* Hero band */}
+      <header className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
-            plans
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            plans · {head.weekday} {head.date}
           </div>
-          <h1 className="mt-3 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
+          <h1 className="mt-4 font-display text-[44px] leading-[0.98] tracking-[-0.02em] sm:text-[56px]">
             The arcs in motion.
           </h1>
-          <p className="mt-2 max-w-md text-[13.5px] text-muted-foreground">
-            Long-running threads — study plans, projects, recoveries. Each one is a page Ru
-            keeps current.
+          <p className="mt-4 max-w-xl text-[14.5px] leading-relaxed text-muted-foreground">
+            Long-running threads — study plans, projects, recoveries. Each plan
+            is a page Ru keeps current as you talk to it.
           </p>
         </div>
 
-        <form action={createPlan}>
-          <button
-            type="submit"
-            className="ru-link font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
-          >
-            + new plan
-          </button>
-        </form>
+        {/* Compact ledger — total counts across plans */}
+        {workspaces.length > 0 && (
+          <div className="grid grid-cols-3 gap-6 self-start pt-2">
+            <Ledger label="plans" value={workspaces.length} />
+            <Ledger label="items" value={totalItems} />
+            <Ledger label="settled" value={totalDone} />
+          </div>
+        )}
       </header>
 
-      <div className="ru-rule mt-8" />
+      <div className="ru-rule mt-10" />
 
-      {workspaces.length === 0 ? (
-        <div className="mt-24 py-12 text-center font-mono text-[12px] lowercase tracking-wide text-muted-foreground/70">
-          no plans yet. start a thread with ru and pin it.
-        </div>
-      ) : (
-        <div className="mt-6">
-          {workspaces.map((w, i) => (
-            <Link
-              key={w.id}
-              href={`/plans/${w.id}`}
-              className="ru-strip group grid items-baseline gap-4 border-b border-[var(--hairline-soft)] py-5 pl-5 pr-2 last:border-b-0 hover:bg-[var(--tint-hover)] transition-colors"
-              style={{
-                gridTemplateColumns: "40px minmax(0,1fr) 96px",
-                ["--entity-color" as string]: "var(--entity-plan)",
-              }}
-            >
-              <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground/35 select-none">
-                {(i + 1).toString().padStart(3, "0")}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="truncate text-[16px] font-medium leading-snug tracking-[-0.005em]">
-                    <span className="ru-link">{w.title}</span>
-                  </h3>
-                  <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-muted-foreground">
-                    {w.itemCount.toString().padStart(2, "0")}{" "}
-                    <span className="text-muted-foreground/40">items</span>
-                  </span>
-                </div>
-                {w.description ? (
-                  <p className="mt-1 line-clamp-1 text-[13px] text-muted-foreground">
-                    {w.description}
-                  </p>
-                ) : null}
-                <div className="mt-3 flex items-center gap-3">
-                  <HairlineProgress value={Math.min(100, w.itemCount * 8)} className="flex-1 max-w-[260px]" />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
-                    {formatAgo(w.created_at, nowMs)}
-                  </span>
-                </div>
-              </div>
-              <span className="text-right font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/50 transition-colors group-hover:text-foreground">
-                open ↗
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* Bento grid — 2 columns on md+ */}
+      <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
+        {workspaces.map((w, i) => (
+          <PlanCard
+            key={w.id}
+            index={i}
+            id={w.id}
+            title={w.title}
+            description={w.description}
+            itemCount={w.itemCount}
+            doneCount={w.doneCount ?? 0}
+            lastActivityIso={w.lastActivityIso ?? w.updated_at ?? w.created_at}
+            nowMs={nowMs}
+          />
+        ))}
+        <NewPlanTile action={createPlan} />
+      </div>
+    </div>
+  );
+}
+
+function Ledger({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border-l border-[var(--hairline)] pl-3">
+      <div className="font-display text-[28px] leading-none tabular-nums sm:text-[32px]">
+        {value.toString().padStart(2, "0")}
+      </div>
+      <div className="mt-1.5 font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+      </div>
     </div>
   );
 }

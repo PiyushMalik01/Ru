@@ -12,6 +12,8 @@ interface TaskRowProps {
   priority: "low" | "medium" | "high";
   dueAt: string | null;
   tags: string[];
+  /** Render a subtle today-highlight band (when the row is in the Today bucket). */
+  highlightToday?: boolean;
 }
 
 const priorityDot: Record<TaskRowProps["priority"], string> = {
@@ -42,7 +44,7 @@ function formatDue(due: string | null, nowMs: number): { label: string; overdue:
   return { label: absLabel, overdue };
 }
 
-export function TaskRow({ id, title, status, priority, dueAt, tags }: TaskRowProps) {
+export function TaskRow({ id, title, status, priority, dueAt, tags, highlightToday }: TaskRowProps) {
   const [optimisticDone, setOptimisticDone] = useState(status === "completed");
   const [pending, startTransition] = useTransition();
 
@@ -65,13 +67,28 @@ export function TaskRow({ id, title, status, priority, dueAt, tags }: TaskRowPro
   const visibleTags = tags.slice(0, 2);
   const extraTags = tags.length - visibleTags.length;
 
+  // Left strip color: cobalt for open, coral for overdue, transparent for done.
+  const stripColor = optimisticDone
+    ? "transparent"
+    : isOverdue
+      ? "var(--entity-reminder)"
+      : "var(--entity-task)";
+
   return (
     <div
       className={cn(
-        "group flex items-center gap-3 border-b border-[rgba(255,255,255,0.05)] py-3.5",
-        "last:border-b-0"
+        "group relative flex items-center gap-3 border-b border-[var(--hairline-soft)] py-4 pl-4 pr-2 transition-colors",
+        "last:border-b-0",
+        highlightToday && !optimisticDone && "bg-[color-mix(in_srgb,var(--entity-task)_4%,transparent)]",
+        "hover:bg-[var(--tint-hover)]",
       )}
     >
+      {/* 3px left strip — entity color marker. */}
+      <span
+        aria-hidden
+        className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition-colors"
+        style={{ background: stripColor }}
+      />
       {/* Toggle */}
       <button
         type="button"
@@ -107,8 +124,8 @@ export function TaskRow({ id, title, status, priority, dueAt, tags }: TaskRowPro
         <div className="flex items-baseline gap-2">
           <span
             className={cn(
-              "truncate text-[15px] font-medium leading-snug tracking-[-0.005em]",
-              optimisticDone && "text-muted-foreground line-through"
+              "truncate text-[16px] font-medium leading-snug tracking-[-0.008em]",
+              optimisticDone && "text-muted-foreground line-through",
             )}
           >
             {title}
@@ -129,16 +146,16 @@ export function TaskRow({ id, title, status, priority, dueAt, tags }: TaskRowPro
         )}
       </div>
 
-      {/* Due */}
+      {/* Due — mono uppercase tracking */}
       {due && (
         <div
           className={cn(
-            "shrink-0 font-mono text-[11px] tabular-nums",
+            "shrink-0 font-mono text-[10.5px] uppercase tracking-[0.14em] tabular-nums",
             optimisticDone
               ? "text-muted-foreground/40 line-through"
               : isOverdue
                 ? "text-error/80"
-                : "text-muted-foreground"
+                : "text-muted-foreground",
           )}
         >
           {due.label}
