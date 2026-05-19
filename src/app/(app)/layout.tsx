@@ -1,4 +1,5 @@
 import { TopNav } from "@/components/app-shell/top-nav";
+import { SubNav } from "@/components/app-shell/sub-nav";
 import { PushPrompt } from "@/components/app-shell/push-prompt";
 import { AppDock } from "@/components/app-shell/app-dock";
 import { RuGhost } from "@/components/ru-companion/ru-ghost";
@@ -7,6 +8,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <TopNav />
+      <SubNav />
       <PushPrompt />
       <main className="flex-1">{children}</main>
       {/* Ru's character — a floating ghost layer. Pointer-events: none so
