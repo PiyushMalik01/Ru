@@ -209,12 +209,24 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Base body type bumped one tick — feels more confident on big screens
+     without crossing into the boomer-blog "big text" zone. Coupled with the
+     heading scale below, the overall page reads more present and editorial. */
+  font-size: 15.5px;
+  line-height: 1.55;
+  font-weight: 450;
 }
 
+/* Headings get more weight + tighter tracking. Display sizes use Fraunces
+   via .font-display; the Geist headings here are for in-flow content. */
 h1, h2, h3, h4, h5, h6 {
-  letter-spacing: -0.025em;
-  font-weight: 600;
+  letter-spacing: -0.028em;
+  font-weight: 650;
+  color: var(--foreground);
 }
+h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.05; }
+h2 { font-size: clamp(1.5rem, 2.6vw, 1.9rem); line-height: 1.1; }
+h3 { font-size: 1.25rem; line-height: 1.2; }
 
 /* Fraunces — characterful display serif. Used ONLY for big numbers, hero
    standfirst, and section openers. The dial-in: SOFT axis up for warmth,
