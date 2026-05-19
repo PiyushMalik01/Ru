@@ -45,9 +45,19 @@ interface ChatState {
   setVoiceMode: (v: boolean) => void;
   setContinuousVoice: (v: boolean) => void;
   setPageContext: (ctx: PageContext | null) => void;
-  sendText: (text: string) => Promise<void>;
+  sendText: (text: string, opts?: SendOptions) => Promise<void>;
+  /** Replace a user message's content and re-run from that point. */
+  editMessage: (messageId: string, newContent: string) => Promise<void>;
+  /** Drop the last assistant reply and re-run against the same prompt. */
+  regenerateLast: () => Promise<void>;
   abort: () => void;
   reset: () => void;
+}
+
+interface SendOptions {
+  mode?: "send" | "edit" | "regenerate";
+  editTargetMessageId?: string;
+  regenerateTargetMessageId?: string;
 }
 
 let abortController: AbortController | null = null;
@@ -251,16 +261,74 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ status: "idle", thinking: "idle", thinkingLabel: null });
   },
 
-  sendText: async (text: string) => {
+  editMessage: async (messageId: string, newContent: string) => {
+    const trimmed = newContent.trim();
+    if (!trimmed) return;
+    // Refuse to edit messages that haven't been persisted yet — we need the
+    // DB id so the server can locate the row and truncate the chat properly.
+    if (messageId.startsWith("local-")) return;
+    await get().sendText(trimmed, {
+      mode: "edit",
+      editTargetMessageId: messageId,
+    });
+  },
+
+  regenerateLast: async () => {
+    const msgs = get().messages;
+    // Find the last non-streaming assistant message with a persisted id.
+    let target: ChatMessage | null = null;
+    let lastUserText: string | null = null;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (!target && m.role === "assistant" && !m.streaming && !m.id.startsWith("local-")) {
+        target = m;
+      }
+      if (target && m.role === "user") {
+        lastUserText = m.content;
+        break;
+      }
+    }
+    if (!target || !lastUserText) return;
+    await get().sendText(lastUserText, {
+      mode: "regenerate",
+      regenerateTargetMessageId: target.id,
+    });
+  },
+
+  sendText: async (text: string, opts: SendOptions = {}) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const userMsg: ChatMessage = {
-      id: `local-${crypto.randomUUID()}`,
-      role: "user",
-      content: trimmed,
-      cards: [],
-    };
+    const mode = opts.mode ?? "send";
+
+    // Compose the local messages array per mode:
+    //   - send       → append user + assistant
+    //   - edit       → truncate to and including the edited message,
+    //                  rewrite its content, append a fresh assistant
+    //   - regenerate → truncate at the target assistant (drop it and any
+    //                  trailing), append a fresh assistant
+    let base = get().messages;
+    if (mode === "edit" && opts.editTargetMessageId) {
+      const idx = base.findIndex((m) => m.id === opts.editTargetMessageId);
+      if (idx === -1) return; // edit target missing — bail rather than break the view
+      base = base.slice(0, idx + 1).map((m, i) =>
+        i === idx ? { ...m, content: trimmed } : m,
+      );
+    } else if (mode === "regenerate" && opts.regenerateTargetMessageId) {
+      const idx = base.findIndex((m) => m.id === opts.regenerateTargetMessageId);
+      if (idx === -1) return;
+      base = base.slice(0, idx);
+    }
+
+    const userMsg: ChatMessage | null =
+      mode === "send"
+        ? {
+            id: `local-${crypto.randomUUID()}`,
+            role: "user",
+            content: trimmed,
+            cards: [],
+          }
+        : null;
     const assistantMsg: ChatMessage = {
       id: `local-${crypto.randomUUID()}`,
       role: "assistant",
@@ -269,7 +337,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streaming: true,
     };
     set({
-      messages: [...get().messages, userMsg, assistantMsg],
+      messages: userMsg ? [...base, userMsg, assistantMsg] : [...base, assistantMsg],
       status: "streaming",
       thinking: "thinking",
       thinkingLabel: null,
@@ -326,6 +394,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           voice: get().voiceMode,
           chatId: currentChatId ?? undefined,
           pageContext: ctx ?? undefined,
+          mode,
+          editTargetMessageId: opts.editTargetMessageId,
+          regenerateTargetMessageId: opts.regenerateTargetMessageId,
         }),
         signal: abortController.signal,
       });

@@ -14,6 +14,18 @@ const BodySchema = z.object({
   message: z.string().min(1).max(4000),
   voice: z.boolean().optional(),
   chatId: z.string().uuid().optional(),
+  /**
+   * mode controls how this turn is recorded:
+   *   - send (default): insert a new user message, then stream assistant reply
+   *   - edit: REPLACE editTargetMessageId's content with `message`, delete every
+   *     subsequent message in the chat, then stream a fresh assistant reply
+   *   - regenerate: delete regenerateTargetMessageId (an assistant message),
+   *     don't insert anything new on the user side, stream a fresh assistant
+   *     reply against the existing history
+   */
+  mode: z.enum(["send", "edit", "regenerate"]).optional(),
+  editTargetMessageId: z.string().uuid().optional(),
+  regenerateTargetMessageId: z.string().uuid().optional(),
 });
 
 const MODEL_DEFAULTS: Record<Provider, string> = {
@@ -123,20 +135,77 @@ export async function POST(req: NextRequest) {
   //
   // The user-msg insert and chat title/bump fire in parallel and are awaited
   // in the stream's `finally` block — never on the hot path.
-  const userMsgId = crypto.randomUUID();
+  const mode = parsed.data.mode ?? "send";
+  const userMsgId =
+    mode === "edit" ? parsed.data.editTargetMessageId ?? crypto.randomUUID() : crypto.randomUUID();
   const assistantMsgId = crypto.randomUUID();
 
-  const userInsertP = supabase
-    .from("messages")
-    .insert({
-      id: userMsgId,
-      user_id: user.id,
-      chat_id: chatId,
-      role: "user",
-      content: parsed.data.message,
-      input_method: parsed.data.voice ? "voice" : "text",
-    })
-    .then(({ error }) => { if (error) console.error("user msg insert failed", error); });
+  // Edit / regenerate housekeeping. These run BEFORE assembleContext so the
+  // history fetched there reflects the truncated/replaced state.
+  if (mode === "edit") {
+    if (!parsed.data.editTargetMessageId) {
+      return new Response("editTargetMessageId required for mode=edit", { status: 400 });
+    }
+    // Look up the target's created_at so we know where to truncate.
+    const { data: target } = await supabase
+      .from("messages")
+      .select("created_at")
+      .eq("id", parsed.data.editTargetMessageId)
+      .eq("user_id", user.id)
+      .eq("chat_id", chatId)
+      .single();
+    if (!target) {
+      return new Response("edit target not found", { status: 404 });
+    }
+    // Replace the user message's content in place + reset its timestamp so
+    // it sorts as "now" — the edit is, in effect, a fresh send of a new
+    // version of that prompt.
+    const nowIso = new Date().toISOString();
+    await supabase
+      .from("messages")
+      .update({ content: parsed.data.message, created_at: nowIso })
+      .eq("id", parsed.data.editTargetMessageId)
+      .eq("user_id", user.id);
+    // Delete everything that came AFTER the edited message in the same chat.
+    await supabase
+      .from("messages")
+      .delete()
+      .eq("chat_id", chatId)
+      .eq("user_id", user.id)
+      .gt("created_at", target.created_at);
+  } else if (mode === "regenerate") {
+    if (!parsed.data.regenerateTargetMessageId) {
+      return new Response("regenerateTargetMessageId required for mode=regenerate", { status: 400 });
+    }
+    // Drop the old assistant reply. assembleContext naturally re-uses the
+    // prior user message as the latest turn since no new user msg is inserted.
+    await supabase
+      .from("messages")
+      .delete()
+      .eq("id", parsed.data.regenerateTargetMessageId)
+      .eq("user_id", user.id);
+  }
+
+  // User-msg insert — skipped on edit (we updated in place) and on
+  // regenerate (the prior user msg is already there). Wrapped via
+  // Promise.resolve so the type collapses to a real Promise (the Supabase
+  // builder is a PromiseLike that TS narrows in a way Promise.all flags).
+  const userInsertP: Promise<unknown> =
+    mode === "send"
+      ? Promise.resolve(
+          supabase
+            .from("messages")
+            .insert({
+              id: userMsgId,
+              user_id: user.id,
+              chat_id: chatId,
+              role: "user",
+              content: parsed.data.message,
+              input_method: parsed.data.voice ? "voice" : "text",
+            })
+            .then(({ error }) => { if (error) console.error("user msg insert failed", error); }),
+        )
+      : Promise.resolve();
 
   const assistantInsertP = supabase
     .from("messages")
