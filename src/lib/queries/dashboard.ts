@@ -95,6 +95,74 @@ export async function fetchRoutinesWithToday(
 }
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "missed";
+
+// ── Task counts for the Sheet stats strip (Open / Due today / Completed this
+//    week / Overdue). All four are computed off a single query window so we
+//    avoid a stampede of round-trips.
+export interface SheetTaskStats {
+  open: number;       // pending + in_progress (any due date)
+  dueToday: number;   // due_at falls inside today, not completed
+  completedWeek: number; // completed_at within last 7 days (inclusive)
+  overdue: number;    // due_at in the past, not completed
+}
+
+export async function fetchSheetTaskStats(
+  supabase: Supabase,
+  userId: string,
+  nowMs: number = Date.now()
+): Promise<SheetTaskStats> {
+  const now = new Date(nowMs);
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  // One small projection. We compute all four counts client-side from a single
+  // window of rows (last 30 days + everything still open). For most users
+  // that's a small set and a single round-trip is much simpler than four
+  // count() queries.
+  const sinceIso = new Date(Math.min(weekAgo.getTime(), startOfToday.getTime() - 30 * 86400_000)).toISOString();
+
+  const { data } = await supabase
+    .from("tasks")
+    .select("status, due_at, completed_at")
+    .eq("user_id", userId)
+    .or(`completed_at.gte.${sinceIso},status.in.(pending,in_progress,missed)`);
+
+  const rows = (data ?? []) as { status: TaskStatus; due_at: string | null; completed_at: string | null }[];
+
+  let open = 0;
+  let dueToday = 0;
+  let completedWeek = 0;
+  let overdue = 0;
+  const nowIso = nowMs;
+  const todayStartMs = startOfToday.getTime();
+  const tomorrowStartMs = startOfTomorrow.getTime();
+  const weekAgoMs = weekAgo.getTime();
+
+  for (const t of rows) {
+    const isCompleted = t.status === "completed";
+    if (!isCompleted) {
+      if (t.status === "pending" || t.status === "in_progress") open += 1;
+      if (t.due_at) {
+        const d = new Date(t.due_at).getTime();
+        if (d >= todayStartMs && d < tomorrowStartMs) dueToday += 1;
+        if (d < nowIso) overdue += 1;
+      } else if (t.status === "missed") {
+        // missed tasks without a due date still read as overdue
+        overdue += 1;
+      }
+    } else if (t.completed_at) {
+      const c = new Date(t.completed_at).getTime();
+      if (c >= weekAgoMs) completedWeek += 1;
+    }
+  }
+
+  return { open, dueToday, completedWeek, overdue };
+}
+
 export interface TaskRow {
   id: string;
   title: string;
@@ -136,10 +204,19 @@ export interface InsightsBundle {
     streak: number;
     rate7: number;
     rate30: number;
+    lastSevenDays: { date: string; completed: boolean }[];
   }[];
   taskRate: { total: number; completed: number; rate: number };
   activityByCategory: { category: string; count: number }[];
   weeklyHeatmap: { date: string; count: number }[];
+  /** Range labels — ISO dates for the current period (inclusive). */
+  range: { startIso: string; endIso: string; days: number };
+  /** Month-over-month delta context: counts from the prior equal-length window. */
+  prior: {
+    tasksCreated: number;
+    tasksCompleted: number;
+    activitiesLogged: number;
+  };
 }
 
 export async function fetchInsights(
@@ -147,40 +224,61 @@ export async function fetchInsights(
   userId: string,
   days = 30
 ): Promise<InsightsBundle> {
+  const today = new Date();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days + 1);
   const cutoffKey = isoDate(cutoff);
 
-  const [routinesRes, routineLogsRes, tasksRes, activityRes] = await Promise.all([
-    supabase
-      .from("routines")
-      .select("id, title")
-      .eq("user_id", userId)
-      .eq("is_active", true),
-    supabase
-      .from("routine_logs")
-      .select("routine_id, logged_date, completed")
-      .eq("user_id", userId)
-      .gte("logged_date", cutoffKey),
-    supabase
-      .from("tasks")
-      .select("status")
-      .eq("user_id", userId)
-      .gte("created_at", cutoff.toISOString()),
-    supabase
-      .from("activity_log")
-      .select("category, timestamp")
-      .eq("user_id", userId)
-      .gte("timestamp", cutoff.toISOString()),
-  ]);
+  // Prior window: same length, immediately preceding `cutoff`.
+  const priorStart = new Date(cutoff);
+  priorStart.setDate(priorStart.getDate() - days);
+  const priorEnd = new Date(cutoff);
+  priorEnd.setDate(priorEnd.getDate() - 1);
+
+  const [routinesRes, routineLogsRes, tasksRes, activityRes, priorTasksRes, priorActivityRes] =
+    await Promise.all([
+      supabase
+        .from("routines")
+        .select("id, title")
+        .eq("user_id", userId)
+        .eq("is_active", true),
+      supabase
+        .from("routine_logs")
+        .select("routine_id, logged_date, completed")
+        .eq("user_id", userId)
+        .gte("logged_date", cutoffKey),
+      supabase
+        .from("tasks")
+        .select("status, created_at, completed_at")
+        .eq("user_id", userId)
+        .gte("created_at", cutoff.toISOString()),
+      supabase
+        .from("activity_log")
+        .select("category, timestamp")
+        .eq("user_id", userId)
+        .gte("timestamp", cutoff.toISOString()),
+      supabase
+        .from("tasks")
+        .select("status, created_at, completed_at")
+        .eq("user_id", userId)
+        .gte("created_at", priorStart.toISOString())
+        .lt("created_at", cutoff.toISOString()),
+      supabase
+        .from("activity_log")
+        .select("id, timestamp")
+        .eq("user_id", userId)
+        .gte("timestamp", priorStart.toISOString())
+        .lt("timestamp", cutoff.toISOString()),
+    ]);
 
   const routines = routinesRes.data ?? [];
   const logs = routineLogsRes.data ?? [];
   const tasks = tasksRes.data ?? [];
   const activities = activityRes.data ?? [];
+  const priorTasks = priorTasksRes.data ?? [];
+  const priorActivities = priorActivityRes.data ?? [];
 
-  // Routine stats: streak + 7/30-day completion rates
-  const today = new Date();
+  // Routine stats: streak + 7/30-day completion rates + 7-day strip
   const routineStats = routines.map((r) => {
     const routineLogs = logs.filter((l) => l.routine_id === r.id);
     const dates = new Set(routineLogs.filter((l) => l.completed).map((l) => l.logged_date));
@@ -192,24 +290,24 @@ export async function fetchInsights(
       cursor.setDate(cursor.getDate() - 1);
     }
 
-    const sevenAgo = new Date(today);
-    sevenAgo.setDate(today.getDate() - 6);
+    const lastSevenDays: { date: string; completed: boolean }[] = [];
     let logsLast7 = 0;
     let completedLast7 = 0;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
       const key = isoDate(d);
-      const log = routineLogs.find((l) => l.logged_date === key);
+      const done = dates.has(key);
+      lastSevenDays.push({ date: key, completed: done });
       logsLast7 += 1;
-      if (log?.completed) completedLast7 += 1;
+      if (done) completedLast7 += 1;
     }
     const rate7 = logsLast7 ? Math.round((completedLast7 / logsLast7) * 100) : 0;
 
     const completed30 = routineLogs.filter((l) => l.completed).length;
     const rate30 = Math.min(100, Math.round((completed30 / days) * 100));
 
-    return { id: r.id, title: r.title, streak, rate7, rate30 };
+    return { id: r.id, title: r.title, streak, rate7, rate30, lastSevenDays };
   });
 
   // Task rate
@@ -245,5 +343,19 @@ export async function fetchInsights(
     weeklyHeatmap.push({ date: key, count: dayCounts.get(key) ?? 0 });
   }
 
-  return { routineStats, taskRate, activityByCategory, weeklyHeatmap };
+  // Prior-window aggregates for month-over-month deltas
+  const priorTaskCompleted = priorTasks.filter((t) => t.status === "completed").length;
+  const prior = {
+    tasksCreated: priorTasks.length,
+    tasksCompleted: priorTaskCompleted,
+    activitiesLogged: priorActivities.length,
+  };
+
+  const range = {
+    startIso: cutoffKey,
+    endIso: isoDate(today),
+    days,
+  };
+
+  return { routineStats, taskRate, activityByCategory, weeklyHeatmap, range, prior };
 }
