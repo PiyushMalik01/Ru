@@ -156,6 +156,120 @@ function PatternsVisual() {
   );
 }
 
+function TrackersVisual() {
+  // Mock tracker tile — column chips at top, a hero number that ticks up,
+  // and a sparkline of recent entries. Mirrors the real /trackers/[id] page.
+  const [entryIdx, setEntryIdx] = useState(0);
+  const ENTRIES = [5.2, 6.0, 4.8, 5.5, 6.3, 7.1, 6.8];
+  useEffect(() => {
+    const id = setInterval(() => setEntryIdx((i) => (i + 1) % ENTRIES.length), 1100);
+    return () => clearInterval(id);
+  }, []);
+
+  const value = ENTRIES[entryIdx];
+  // Build a polyline through the entries up to and including the current one.
+  const visible = ENTRIES.slice(0, entryIdx + 1);
+  const maxV = Math.max(...ENTRIES);
+  const minV = Math.min(...ENTRIES);
+  const points = visible
+    .map((v, i) => {
+      const x = (i / (ENTRIES.length - 1)) * 120;
+      const y = 30 - ((v - minV) / (maxV - minV || 1)) * 24;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const COLUMNS = [
+    { label: "Distance · km", bg: "#d9fb60", fg: "#1a5632" },
+    { label: "Time · min",    bg: "#1fd7df", fg: "#0a3438" },
+    { label: "Pace",          bg: "rgba(255,255,255,0.6)", fg: "#1a5632" },
+  ];
+
+  return (
+    <div
+      className="rounded-xl p-3"
+      style={{ background: "#f5f7ef", border: "1px solid #1a563225" }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span
+          className="text-[11px] font-bold uppercase tracking-wider"
+          style={{ color: "#1a5632" }}
+        >
+          Running
+        </span>
+        <motion.span
+          className="text-[10px] font-semibold tabular-nums"
+          style={{ color: "#1a5632" }}
+          animate={{ opacity: [1, 0.4, 1] }}
+          transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+        >
+          {(entryIdx + 1).toString().padStart(2, "0")} entries
+        </motion.span>
+      </div>
+
+      {/* Column chips — the tracker's user-defined schema */}
+      <div className="mb-2.5 flex flex-wrap gap-1">
+        {COLUMNS.map((c) => (
+          <span
+            key={c.label}
+            className="rounded-full px-2 py-[2px] text-[9px] font-semibold uppercase tracking-wider"
+            style={{ background: c.bg, color: c.fg }}
+          >
+            {c.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Hero number + sparkline */}
+      <div className="flex items-end gap-3">
+        <div>
+          <motion.div
+            key={entryIdx}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-2xl font-extrabold leading-none tabular-nums"
+            style={{ color: "#1a5632", fontFamily: "var(--font-serif)" }}
+          >
+            {value.toFixed(1)}
+            <span className="ml-0.5 text-[11px] opacity-65">km</span>
+          </motion.div>
+          <div
+            className="mt-1 text-[9px] font-semibold uppercase tracking-wider"
+            style={{ color: "rgba(26,86,50,0.6)" }}
+          >
+            last entry
+          </div>
+        </div>
+        <svg
+          width="120"
+          height="32"
+          viewBox="0 0 120 32"
+          aria-hidden="true"
+          className="ml-auto"
+        >
+          <polyline
+            points={points}
+            fill="none"
+            stroke="#1a5632"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {visible.length > 0 && (
+            <circle
+              cx={((visible.length - 1) / (ENTRIES.length - 1)) * 120}
+              cy={30 - ((value - minV) / (maxV - minV || 1)) * 24}
+              r="2.5"
+              fill="#1a5632"
+            />
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function InsightsVisual() {
   // Two-cycle loop: sparkline fills LtoR, ring fills 0→75% over 2s, both reset.
   const [tick, setTick] = useState(0);
@@ -457,6 +571,19 @@ const FEATURES: FeatureCard[] = [
       </>
     ),
     visual: <RoutinesVisual />,
+  },
+  {
+    tag: "Trackers",
+    accent: "#2a2270",
+    title: "Track what matters to you",
+    desc: (
+      <>
+        Tell <RuMark /> what to follow — runs, workouts, sleep, mood. Custom
+        columns, charts, streaks. Want a new field next week? Just say so;
+        nothing&rsquo;s locked.
+      </>
+    ),
+    visual: <TrackersVisual />,
   },
 ];
 

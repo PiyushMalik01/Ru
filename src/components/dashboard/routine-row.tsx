@@ -14,6 +14,12 @@ interface RoutineRowProps {
   streak: number;
   todayCompleted: boolean;
   lastSevenDays: { date: string; completed: boolean }[];
+  /**
+   * "user_declared" → the user told Ru to make it. "auto_detected" → Ru noticed
+   * a pattern in the activity log and promoted it. Drives a small badge so the
+   * user can tell which is which at a glance.
+   */
+  origin?: "user_declared" | "auto_detected";
 }
 
 function formatTime(t: string | null): string | null {
@@ -37,6 +43,7 @@ export function RoutineRow({
   streak,
   todayCompleted,
   lastSevenDays,
+  origin = "user_declared",
 }: RoutineRowProps) {
   const [optimisticDone, setOptimisticDone] = useState(todayCompleted);
   const [pending, startTransition] = useTransition();
@@ -102,6 +109,18 @@ export function RoutineRow({
           >
             {title}
           </span>
+          {origin === "auto_detected" && (
+            <span
+              title="Ru spotted this pattern in your activity log"
+              className="shrink-0 rounded-full px-1.5 py-[1px] font-mono text-[9px] uppercase tracking-[0.14em]"
+              style={{
+                background: "var(--entity-insight)",
+                color: "var(--entity-insight-fg)",
+              }}
+            >
+              noticed
+            </span>
+          )}
         </div>
         <div className="mt-1.5 flex items-center gap-3 font-mono text-[10px] lowercase tracking-[0.08em] text-muted-foreground">
           <span>{frequency}</span>

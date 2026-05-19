@@ -157,6 +157,7 @@ export default async function RoutinesPage() {
                       streak={r.streak}
                       todayCompleted={r.todayCompleted}
                       lastSevenDays={r.lastSevenDays}
+                      origin={r.origin}
                     />
                   ))}
                 </div>
