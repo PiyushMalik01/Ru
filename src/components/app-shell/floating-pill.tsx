@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Mic, Square, ArrowUp, Headphones } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useChatStore } from "@/lib/stores/chat-store";
+import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { VoiceConversation } from "@/components/chat/voice-conversation";
 import { usePushToTalk } from "@/lib/hooks/use-push-to-talk";
@@ -29,6 +29,21 @@ export function FloatingPill() {
   const setContinuousVoice = useChatStore((s) => s.setContinuousVoice);
 
   const isStreaming = status === "streaming";
+
+  // TTS keeps playing audio after the SSE stream ends — the model finished
+  // generating text but Ru is still reading it aloud. Poll the audio player
+  // so the Stop button stays visible (and clickable) the whole time.
+  const [ttsPlaying, setTtsPlaying] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const p = isTTSPlaying();
+      setTtsPlaying((prev) => (prev === p ? prev : p));
+      raf = window.setTimeout(tick, 200) as unknown as number;
+    };
+    tick();
+    return () => window.clearTimeout(raf);
+  }, []);
 
   const stopSTT = useCallback(() => {
     sttRef.current?.stop();
@@ -105,7 +120,9 @@ export function FloatingPill() {
   }
 
   function handleSubmit() {
-    if (isStreaming) {
+    // Stop button: kill the stream AND cut Ru's audio mid-sentence.
+    // abort() already calls interruptTTS internally.
+    if (isStreaming || ttsPlaying) {
       abort();
       return;
     }
@@ -154,13 +171,15 @@ export function FloatingPill() {
     }
   }
 
-  const showStop = isStreaming;
+  // Show Stop while the model is streaming OR while Ru is still speaking
+  // queued audio. The user explicitly asked for a way to shut her up mid-reply.
+  const showStop = isStreaming || ttsPlaying;
   const showSend = !showStop && state === "typing" && input.trim().length > 0;
 
   // Single status dot on the left — replaces the "Voice only" labeled chip's
   // colored dot and gives the pill a visible state at a glance.
   const dotState: "idle" | "typing" | "listening" | "streaming" =
-    isStreaming ? "streaming" : state;
+    isStreaming || ttsPlaying ? "streaming" : state;
 
   return (
     <>
