@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
+import type { VoiceContext } from "@/lib/ai/engine/voice-persona";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { startFlux, type FluxHandle } from "@/lib/voice/flux";
 import { startLocalVAD, type LocalVADHandle } from "@/lib/voice/local-vad";
@@ -237,7 +238,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
                 ...s,
                 lastEotConfidence: e.confidence,
               }));
-              if (e.confidence >= 0.7) commit();
+              if (e.confidence >= 0.7) void commit();
               return;
             case "eager_eot":
               setDebugSignals((s) => ({
@@ -270,7 +271,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function commit() {
+  async function commit() {
     const text = finalBufRef.current.trim();
     finalBufRef.current = "";
     setTranscript("");
@@ -279,12 +280,64 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       handleClose();
       return;
     }
+    // Snapshot the last ~10s of mic PCM BEFORE tearing down Flux — the
+    // ring buffer lives on the FluxHandle and disappears with stop().
+    const pcm = fluxRef.current?.snapshotPCM();
     // Tear down the mic before sending — we don't want to listen to Ru
     // through her own playback path. The FSM will reopen the mic when we
     // land back in `listening` after cooldown.
     tearDownInputs();
     machineRef.current?.send({ type: "commit", text });
-    void sendText(text);
+
+    // Paralinguistic side-channel. Fire-and-forget extraction: if the
+    // network blips or the route errors we send chat normally without
+    // voiceContext (fail-open — the LLM still has the words). When it
+    // succeeds, voiceContext flows into /api/chat as a system prompt
+    // block and pace_wpm mirrors back into Aura's speed.
+    let voiceContext: VoiceContext | null = null;
+    if (pcm && pcm.length > 0) {
+      voiceContext = await fetchFeatures(pcm, text).catch(() => null);
+    }
+    if (voiceContext) {
+      setDebugSignals((s) => ({
+        ...s,
+        lastVoiceContext: voiceContext as unknown as Record<string, unknown>,
+      }));
+    }
+    void sendText(text, { voiceContext });
+  }
+
+  async function fetchFeatures(
+    pcm: Float32Array,
+    transcript: string,
+  ): Promise<VoiceContext | null> {
+    // Float32 [-1, 1] → Int16 little-endian → base64. Matches the format
+    // /api/voice/features expects (16kHz mono linear16) and the format
+    // Flux's ring buffer already stores upstream of the Int16→Float32
+    // conversion in snapshotPCM().
+    const int16 = new Int16Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) {
+      const s = Math.max(-1, Math.min(1, pcm[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    const bytes = new Uint8Array(int16.buffer);
+    // btoa requires a binary string; build it in chunks to avoid call-stack
+    // limits on long PCM (up to 320KB).
+    let bin = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode(
+        ...bytes.subarray(i, Math.min(i + CHUNK, bytes.length)),
+      );
+    }
+    const audioBase64 = btoa(bin);
+    const res = await fetch("/api/voice/features", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ audioBase64, transcript }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as VoiceContext;
   }
 
   function onBargeIn(m: ReturnType<typeof createVoiceMachine>) {

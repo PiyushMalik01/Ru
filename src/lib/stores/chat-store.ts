@@ -58,6 +58,12 @@ interface SendOptions {
   mode?: "send" | "edit" | "regenerate";
   editTargetMessageId?: string;
   regenerateTargetMessageId?: string;
+  /**
+   * Paralinguistic signal extracted from the user's audio for the just-
+   * finished turn. Threaded through to /api/chat so the engine can adapt
+   * tone (and so the LLM sees a voiceContext system block). Voice-only.
+   */
+  voiceContext?: import("@/lib/ai/engine/voice-persona").VoiceContext | null;
 }
 
 let abortController: AbortController | null = null;
@@ -408,6 +414,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           mode,
           editTargetMessageId: opts.editTargetMessageId,
           regenerateTargetMessageId: opts.regenerateTargetMessageId,
+          voiceContext: opts.voiceContext ?? undefined,
         }),
         signal: abortController.signal,
       });
