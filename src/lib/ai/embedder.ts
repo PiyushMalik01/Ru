@@ -9,8 +9,8 @@ export function createEmbedder(): Embedder {
   return {
     async embed(texts) {
       if (texts.length === 0) return [];
-      const apiKey = process.env.OPENAI_EMBEDDING_API_KEY;
-      if (!apiKey) throw new Error("OPENAI_EMBEDDING_API_KEY is not set");
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
       const model = process.env.OPENAI_EMBEDDING_MODEL || DEFAULT_MODEL;
 
       const res = await fetch(ENDPOINT, {

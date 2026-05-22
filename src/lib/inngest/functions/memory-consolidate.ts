@@ -448,6 +448,71 @@ async function rewriteSection(
   });
 }
 
+// ===== OpenAI consolidation client (raw fetch — no SDK dep) =====
+// Quality bridge: two-pass draft → critique-and-refine, guaranteed JSON schema.
+// gpt-4o-mini is ~6x cheaper than Haiku 4.5; the second pass closes the quality gap.
+
+const OPENAI_CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const CONSOLIDATION_MODEL = "gpt-4o-mini";
+
+interface OpenAIChatChoice {
+  message?: { content?: string | null };
+}
+interface OpenAIChatResponse {
+  choices?: OpenAIChatChoice[];
+  error?: { message?: string };
+}
+
+async function openaiChatJson<T>(args: {
+  apiKey: string;
+  system: string;
+  user: string;
+  schemaName: string;
+  schema: Record<string, unknown>;
+  maxTokens: number;
+  temperature?: number;
+}): Promise<T | null> {
+  const body = {
+    model: CONSOLIDATION_MODEL,
+    temperature: args.temperature ?? 0.3,
+    max_tokens: args.maxTokens,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: args.schemaName, strict: true, schema: args.schema },
+    },
+    messages: [
+      { role: "system", content: args.system },
+      { role: "user", content: args.user },
+    ],
+  };
+  const res = await fetch(OPENAI_CHAT_ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${args.apiKey}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = "(body read failed)";
+    try { detail = (await res.text()).slice(0, 300); } catch { /* noop */ }
+    console.error(`openai ${res.status}: ${detail}`);
+    return null;
+  }
+  let parsed: OpenAIChatResponse;
+  try {
+    parsed = (await res.json()) as OpenAIChatResponse;
+  } catch (e) {
+    console.error("openai: response not JSON", e);
+    return null;
+  }
+  const content = parsed.choices?.[0]?.message?.content;
+  if (!content) return null;
+  try {
+    return JSON.parse(content) as T;
+  } catch (e) {
+    console.error("openai: content not JSON (strict schema should have prevented this)", e);
+    return null;
+  }
+}
+
 async function callSectionRewriter(input: {
   section: string;
   budget: number;
@@ -457,13 +522,11 @@ async function callSectionRewriter(input: {
   episodes: Array<{ id: string; content: string; importance: number }>;
   corrections: Array<{ original: string; corrected: string }>;
 }): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_CONSOLIDATION_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.error("ANTHROPIC_CONSOLIDATION_KEY not set; skipping consolidation");
+    console.error("OPENAI_API_KEY not set; skipping consolidation");
     return null;
   }
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic({ apiKey });
 
   const epLines = input.episodes
     .map((e) => `- (${e.importance.toFixed(2)}) ${e.content}`)
@@ -476,15 +539,14 @@ async function callSectionRewriter(input: {
       : `- remove "${c.original}"`)
     .join("\n");
 
-  const sys = `You are a memory consolidator for Ru, an AI life organizer. Output the rewritten content of ONE profile section. Constraints:
-- Section: ${input.section}
-- Target length: under ${input.budget} tokens, ideally 2-6 short factual sentences.
-- Style: third person, neutral, no opinions, no first-person "I".
-- Do not fabricate. Only include facts supported by the existing content, episodes, or corrections below.
-- If episodes contradict prior content, prefer the episodes (the user just confirmed them).
-- If corrections are given, honor them strictly.
-- Output ONLY the new section content. No headers, no quotes, no commentary.`;
-  const user = `Existing ${input.section}:
+  const rulesBlock = `Section: ${input.section}
+Length budget: under ${input.budget} tokens, ideally 2-6 short factual sentences.
+Voice: third person, neutral, no opinions, no first-person "I".
+Factuality: only state facts supported by the existing content, episodes, or corrections.
+Conflict policy: if episodes contradict prior content, prefer the episodes.
+Corrections: honor strictly.`;
+
+  const sourcesBlock = `Existing ${input.section}:
 ${input.currentContent || "(empty)"}
 
 User: ${input.displayName ?? "(unknown)"}, ${input.timezone}
@@ -493,24 +555,55 @@ Recent high-importance episodes:
 ${epLines || "(none)"}
 
 User corrections to apply:
-${corrLines || "(none)"}
+${corrLines || "(none)"}`;
 
-Rewrite the section.`;
+  // --- Pass A: draft ---
+  const draftSys = `You are a memory consolidator for Ru, an AI life organizer. Rewrite ONE profile section.\n\n${rulesBlock}`;
+  const draftUser = `${sourcesBlock}\n\nWrite the section now.`;
+  const draft = await openaiChatJson<{ content: string }>({
+    apiKey,
+    system: draftSys,
+    user: draftUser,
+    schemaName: "section_draft",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["content"],
+      properties: {
+        content: { type: "string", description: "The rewritten section content. Plain prose, no headers." },
+      },
+    },
+    maxTokens: Math.ceil(input.budget * 1.5),
+    temperature: 0.3,
+  });
+  if (!draft || !draft.content?.trim()) return null;
 
-  try {
-    const res = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: Math.ceil(input.budget * 1.3),
-      system: sys,
-      messages: [{ role: "user", content: user }],
-    });
-    const text = res.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return null;
-    return text.text.trim();
-  } catch (e) {
-    console.error("section rewriter failed", e);
-    return null;
-  }
+  // --- Pass B: critique-and-refine ---
+  // Critic re-reads sources and either approves the draft or rewrites it.
+  // This closes the gap to Haiku-quality without a separate scoring round.
+  const refineSys = `You are a strict editor reviewing a draft profile section for Ru. Re-read the sources and either approve the draft or fix it.\n\n${rulesBlock}\n\nIssues to catch:\n- Hallucinated facts not in the sources\n- Voice slips (first-person, opinions, hedging)\n- Length over budget\n- Awkward phrasing or repetition\n- Failure to apply corrections\n\nIf the draft is good, set approved=true and echo the draft verbatim. If anything is wrong, set approved=false and write the corrected version.`;
+  const refineUser = `${sourcesBlock}\n\n---\n\nDraft to review:\n${draft.content.trim()}\n\nReview and finalize.`;
+  const refined = await openaiChatJson<{ approved: boolean; content: string; reason: string }>({
+    apiKey,
+    system: refineSys,
+    user: refineUser,
+    schemaName: "section_refine",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["approved", "content", "reason"],
+      properties: {
+        approved: { type: "boolean" },
+        content:  { type: "string", description: "Final section content. If approved, echo the draft. If not, write the corrected version." },
+        reason:   { type: "string", description: "Brief note on what was wrong, or 'ok' if approved." },
+      },
+    },
+    maxTokens: Math.ceil(input.budget * 1.5),
+    temperature: 0.2,
+  });
+
+  const finalText = (refined?.content?.trim() || draft.content.trim());
+  return finalText || null;
 }
 
 // ===== Pass 4 — Routine detection v2 =====
@@ -589,26 +682,35 @@ async function routineDetectionVote(input: {
   hourMean: number;
   stdev: number;
 }): Promise<boolean> {
-  const apiKey = process.env.ANTHROPIC_CONSOLIDATION_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return false;
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic({ apiKey });
-  try {
-    const res = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 16,
-      system: 'You vote yes or no on whether an activity pattern should be promoted to a tracked "routine". Reply ONLY "yes" or "no".',
-      messages: [{
-        role: "user",
-        content: `Activity: "${input.activity}"\nOccurrences in last 14 days: ${input.occurrences}\nTypical hour: ${input.hourMean}\nHour stdev: ${input.stdev.toFixed(2)}\n\nShould this be auto-promoted to a routine the user can opt into?`,
-      }],
-    });
-    const text = res.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return false;
-    return /^yes/i.test(text.text.trim());
-  } catch {
-    return false;
-  }
+
+  const sys = 'You vote on whether an activity pattern should be promoted to a tracked "routine" the user can opt into. Vote yes only if the pattern is specific, recurrent, and intentional-looking (not incidental noise).';
+  const user = `Activity: "${input.activity}"
+Occurrences in last 14 days: ${input.occurrences}
+Typical hour: ${input.hourMean}
+Hour stdev: ${input.stdev.toFixed(2)}
+
+Should this be auto-promoted to a routine?`;
+
+  const result = await openaiChatJson<{ should_promote: boolean; reason: string }>({
+    apiKey,
+    system: sys,
+    user,
+    schemaName: "routine_vote",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["should_promote", "reason"],
+      properties: {
+        should_promote: { type: "boolean" },
+        reason:         { type: "string", description: "Brief justification (one sentence)." },
+      },
+    },
+    maxTokens: 64,
+    temperature: 0,
+  });
+  return result?.should_promote === true;
 }
 
 // ===== Pass 5 — Decay =====

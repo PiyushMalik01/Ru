@@ -5,7 +5,7 @@ describe("embedder", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    process.env.OPENAI_EMBEDDING_API_KEY = "sk-test";
+    process.env.OPENAI_API_KEY = "sk-test";
   });
 
   afterEach(() => {
@@ -33,9 +33,9 @@ describe("embedder", () => {
   });
 
   it("throws when no API key is configured", async () => {
-    delete process.env.OPENAI_EMBEDDING_API_KEY;
+    delete process.env.OPENAI_API_KEY;
     const embedder = createEmbedder();
-    await expect(embedder.embed(["x"])).rejects.toThrow(/OPENAI_EMBEDDING_API_KEY/);
+    await expect(embedder.embed(["x"])).rejects.toThrow(/OPENAI_API_KEY/);
   });
 
   it("returns an empty array for empty input without calling the API", async () => {
