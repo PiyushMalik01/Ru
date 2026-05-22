@@ -167,7 +167,69 @@ Running list of things to manually verify before shipping. Add to it as features
 
 ---
 
+## M1 — Conversational Voice
+
+### Turn-taking + listening
+- [ ] **First-word capture** — tap voice button, immediately say a word; verify it appears in transcript
+- [ ] **Two-stage indicator** — "Warming up…" then "Listening" — transitions visible
+- [ ] **EOT doesn't cut off mid-thought** — pause ~1s mid-sentence then continue; verify Flux holds (doesn't commit)
+- [ ] **EOT commits cleanly on completion** — finish a clean sentence; verify ≤900ms p50 to response
+- [ ] **Eager EOT cancellation** — pause then resume; verify no premature LLM call result lands
+
+### Barge-in
+- [ ] **Barge-in on quiet voice** — interrupt Ru softly; she stops <200ms
+- [ ] **Barge-in in a noisy room** — local VAD picks up where Deepgram VAD wavers
+- [ ] **Truncation works** — barge in mid-reply; verify message in DB ends with "…" and `truncated_at` set
+- [ ] **No memory drift** — open a new chat after barge-in turn; verify Ru recalls only what was actually said
+
+### Reliability / state machine
+- [ ] **Mic reopens reliably** — chain 5 quick turns; mic comes back every time
+- [ ] **Watchdog fires + recovers** — manually delay an LLM response 16s; verify recovery to listening
+- [ ] **Sockets pre-warm** — open voice mode; verify Flux + Aura open in parallel with mic permission
+- [ ] **No more "stuck thinking"** — chain 10 turns; verify FSM never gets wedged
+
+### Prosody + voice persona
+- [ ] **`[pause]` is silent, not read** — Ru emits a `[pause]` tag; verify it sounds like a pause (not the literal word "pause")
+- [ ] **Pauses audible via ellipsis encoding** — `[pause]` should produce a brief natural pause in Aura output
+- [ ] **`[soft]` doesn't get read literally** — wrapped text plays; SSML markup stripped before Aura
+- [ ] **No markdown bleeds through** — voice reply never reads `**`, `#`, or bullet characters
+- [ ] **Replies are short and spoken-style** — 1-3 sentences default, contractions used, no lists
+
+### Paralinguistic + rhythm
+- [ ] **voiceContext appears in debug panel** — every committed turn shows energy/pace/emotion
+- [ ] **`pace_wpm` flows end-to-end** — speak fast or slow; debug panel shows the value
+- [ ] **`setSpeed` is invoked** — even though Aura doesn't honor it today, log/instrumentation confirms it's called
+- [ ] **Emotion classifier produces sane buckets** — speak quietly → "calm" or "sad"; speak excitedly → "excited"
+
+### Surpass features
+- [ ] **Predictive opening fires** — at typical routine time, Ru opens with anticipated greeting (e.g., "Want me to log the workout?")
+- [ ] **Predictive opening cold-start** — fresh user with no behavioral model → just "Hey."
+- [ ] **Tool-fill speech masks tool latency** — ask Ru to add a task; she says "Adding that now." while the tool runs
+- [ ] **Tool-fill doesn't repeat itself** — chain multiple tool calls; fillers rotate
+- [ ] **Semantic stop — 'I gotta go'** — Ru says a brief goodbye and closes
+- [ ] **Semantic stop — 'let's stop here'** — same
+- [ ] **Semantic stop — 'bye Ru'** — same
+- [ ] **Semantic stop — 'alright we're done'** — same
+- [ ] **Fast-path 'stop'** — say just "stop"; closes immediately without waiting for LLM
+- [ ] **end_voice_session only registered in voice mode** — text turns must not see it in the tool list
+
+### Edge cases
+- [ ] **Mic permission denied** — banner + retry CTA
+- [ ] **Flux WS drops mid-session** — reconnects with pre-buffer
+- [ ] **Aura WS drops** — falls back to browser speechSynthesis (or graceful failure)
+- [ ] **Tab backgrounded** — pause + resume work
+- [ ] **Network blip** — 5s offline mid-turn; recovers
+- [ ] **Debug panel toggles via `?debug=voice`** — visible during testing; can be hidden later
+- [ ] **OAuth session expired mid-call** — verify graceful handling
+
+### Cost + latency
+- [ ] **Latency benchmark** — run 50 voice turns; measure p50/p95 user-stops→ru-starts (target p50 ≤900ms, p95 ≤1200ms)
+- [ ] **Cost envelope** — verify <$0.05/voice-min on Deepgram dashboard
+
+---
+
 ## Notes / open questions
 *(Drop short notes here as you test — easier than scrolling to find context)*
 
+- **Aura SSML / speed limitation** — Aura WS doesn't accept SSML or runtime speed control. Workarounds in place (ellipsis-as-pause encoding, setSpeed stub). For full prosody/rhythm value, evaluate swapping to Cartesia Sonic 3 or ElevenLabs v3 as a follow-up after voice testing.
 -
