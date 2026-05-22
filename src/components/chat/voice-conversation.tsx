@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
-import { startSTT, type STTHandle } from "@/lib/voice/stt";
+import { startFlux, type FluxHandle } from "@/lib/voice/flux";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +60,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const [transcript, setTranscript] = useState("");
   const [phase, setPhase] = useState<Phase>("listening");
 
-  const sttRef = useRef<STTHandle | null>(null);
+  const fluxRef = useRef<FluxHandle | null>(null);
   const finalBufRef = useRef<string>("");
   const stoppingRef = useRef(false);
   const restartTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,9 +76,9 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   // without listing it as a dep (and without using a stale closure).
   const startListeningRef = useRef<() => Promise<void>>(async () => undefined);
 
-  const stopSTT = useCallback(() => {
-    sttRef.current?.stop();
-    sttRef.current = null;
+  const stopFlux = useCallback(() => {
+    fluxRef.current?.stop();
+    fluxRef.current = null;
   }, []);
 
   const commitUtterance = useCallback(() => {
@@ -89,54 +89,70 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
 
     if (isStopPhrase(text)) {
       stoppingRef.current = true;
-      stopSTT();
+      stopFlux();
       onClose();
       return;
     }
 
     // Tear down STT before sending so we don't double-listen to Ru's reply.
-    stopSTT();
+    stopFlux();
     setPhase("thinking");
     void sendText(text);
-  }, [onClose, sendText, stopSTT]);
+  }, [onClose, sendText, stopFlux]);
 
   const startListening = useCallback(async () => {
-    if (sttRef.current || stoppingRef.current) return;
+    if (fluxRef.current || stoppingRef.current) return;
     setPhase("listening");
     setTranscript("");
     finalBufRef.current = "";
     try {
-      sttRef.current = await startSTT({
-        onInterim: (text) => {
-          setTranscript((finalBufRef.current + " " + text).trim());
-        },
-        onFinal: (text) => {
-          // Per-segment final. Accumulate into the buffer — don't submit yet.
-          // Deepgram fires this on any ~600ms pause, so a natural mid-sentence
-          // pause would otherwise truncate the user's message.
-          finalBufRef.current = (finalBufRef.current + " " + text).trim();
-          setTranscript(finalBufRef.current);
-        },
-        onUtteranceEnd: () => {
-          // True end of speech (utterance_end_ms of continuous silence).
-          // THIS is the right signal to commit the message.
-          commitUtterance();
-        },
-        onSpeechStarted: () => {
-          // User started talking. If Ru is still mid-reply, barge in.
-          if (useChatStore.getState().status === "streaming" || isTTSPlaying()) {
-            abort();
+      fluxRef.current = await startFlux({
+        onEvent: (e) => {
+          switch (e.type) {
+            case "ready":
+              // Socket is open and accepting audio. Indicator already
+              // in 'listening' phase from above.
+              return;
+            case "interim":
+              setTranscript((finalBufRef.current + " " + e.text).trim());
+              return;
+            case "final":
+              // Flux gives us the full turn transcript on EagerEndOfTurn and
+              // EndOfTurn. We *replace* (not append) the final buffer because
+              // Flux's transcript is cumulative for the whole turn — unlike
+              // Nova-3 which fires partial per-segment finals.
+              finalBufRef.current = e.text.trim();
+              setTranscript(finalBufRef.current);
+              return;
+            case "eot":
+              // Flux's EOT is the commit signal — confidence-gated. The Flux
+              // client only emits this when end_of_turn_confidence >= the
+              // server-side threshold, but we keep a client-side floor too
+              // in case the server lowers its threshold via config.
+              if (e.confidence >= 0.7) {
+                commitUtterance();
+              }
+              return;
+            case "speech_started":
+              // User started talking. If Ru is still mid-reply, barge in.
+              if (
+                useChatStore.getState().status === "streaming" ||
+                isTTSPlaying()
+              ) {
+                abort();
+              }
+              return;
+            case "error":
+              console.error("flux error", e.message);
+              stopFlux();
+              return;
           }
-        },
-        onError: (msg) => {
-          console.error("stt error", msg);
-          stopSTT();
         },
       });
     } catch (e) {
-      console.error("stt start failed", e);
+      console.error("flux start failed", e);
     }
-  }, [abort, commitUtterance, stopSTT]);
+  }, [abort, commitUtterance, stopFlux]);
 
   // Keep the ref pointed at the freshest startListening every render so the
   // mount + restart effects can call through it without depending on the
@@ -151,7 +167,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     void startListeningRef.current();
     return () => {
       stoppingRef.current = true;
-      stopSTT();
+      stopFlux();
       if (restartTimerRef.current) clearInterval(restartTimerRef.current);
       ruClear();
     };
@@ -164,7 +180,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     let next: Phase;
     if (status === "streaming") {
       next = thinking === "speaking" ? "speaking" : "thinking";
-    } else if (sttRef.current) {
+    } else if (fluxRef.current) {
       next = "listening";
     } else {
       next = "ready";
@@ -191,7 +207,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (stoppingRef.current) return;
     if (status !== "idle") return;
-    if (sttRef.current) return;
+    if (fluxRef.current) return;
 
     silentSinceRef.current = null;
     restartTimerRef.current = setInterval(() => {
@@ -229,7 +245,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
 
   function handleClose() {
     stoppingRef.current = true;
-    stopSTT();
+    stopFlux();
     abort();
     ruClear();
     onClose();
