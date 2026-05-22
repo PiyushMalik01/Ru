@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
+import { MemoryFactChip } from "./memory-fact-chip";
 
 // Three primary surfaces. Each carries an entity color so the active marker
 // reads as a publication section header, not a generic tab indicator.
@@ -107,6 +108,7 @@ export function TopNav() {
 
         <div className="flex items-center gap-4">
           <ThemeToggle />
+          <MemoryFactChip />
           <Link
             href="/settings"
             className={cn(
