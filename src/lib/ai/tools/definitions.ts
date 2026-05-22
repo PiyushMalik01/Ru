@@ -474,6 +474,42 @@ export const TOOL_DEFINITIONS: NormalizedTool[] = [
       },
     },
   },
+  {
+    name: "note_episode",
+    description:
+      "Record something memory-worthy that just happened in this turn: a preference reveal, a decision, a life event, a correction, a strong opinion, a stated plan. Write a brief 1-3 sentence summary in third person about the user. Skip trivial chat (thanks, ok, idk) and things already captured by structured tools (creating a task is not an episode — the task itself is the record). Do not narrate this in your reply.",
+    parameters: {
+      type: "object",
+      properties: {
+        summary: { type: "string", description: "1-3 sentences, third person, e.g. 'Piyush mentioned moving to Tokyo last week.'" },
+        entity_refs: {
+          type: "object",
+          description: "Optional links to entities this episode is about.",
+          properties: {
+            task_descriptions:    { type: "array", items: { type: "string" } },
+            routine_descriptions: { type: "array", items: { type: "string" } },
+            tracker_names:        { type: "array", items: { type: "string" } },
+            workspace_titles:     { type: "array", items: { type: "string" } },
+          },
+        },
+        importance: { type: "number", minimum: 0, maximum: 1, description: "Default 0.5. Use >=0.7 for life events, strong preferences, corrections. <=0.3 for minor observations." },
+      },
+      required: ["summary"],
+    },
+  },
+  {
+    name: "forget",
+    description:
+      "Mark a fact, episode, or profile statement as superseded. Use when the user explicitly retracts ('that's not true anymore', 'I don't do that') or contradicts something Ru previously remembered.",
+    parameters: {
+      type: "object",
+      properties: {
+        target_description: { type: "string", description: "What to forget, e.g. 'that I'm cutting carbs' or 'my old Seattle address'." },
+        reason: { type: "string", description: "Optional one-line reason — used in the audit log." },
+      },
+      required: ["target_description"],
+    },
+  },
 ];
 
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name);
