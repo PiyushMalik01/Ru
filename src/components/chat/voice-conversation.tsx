@@ -197,12 +197,16 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
 
   // Tool-fill speech — Surpass #1. Whenever the SSE parser bumps the
   // `lastToolCall` signal, speak a tool-appropriate filler so there's no
-  // dead air while the tool runs. We subscribe to the store imperatively
-  // (not via the selector) so we can dedupe by tick — Zustand selectors
-  // can't easily tell us "this is a fresh event" when name + tool stay the
-  // same back-to-back. Plain-format because fillers are short canned
-  // phrases; the prosody parser still translates any embedded [pause:Nms]
-  // tags into SSML <break/> on the way to Aura.
+  // dead air while the tool runs. ALSO handles `end_voice_session` —
+  // Surpass #5 — by waiting for Ru's goodbye to finish playing, then
+  // closing the voice loop.
+  //
+  // We subscribe to the store imperatively (not via the selector) so we
+  // can dedupe by tick — Zustand selectors can't easily tell us "this is
+  // a fresh event" when name + tool stay the same back-to-back. Plain-
+  // format fillers because they're short canned phrases; the prosody
+  // parser still translates any embedded [pause:Nms] tags into SSML
+  // <break/> on the way to Aura.
   useEffect(() => {
     const unsub = useChatStore.subscribe((state) => {
       const tc = state.lastToolCall;
@@ -210,6 +214,30 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       if (tc.tick === lastToolTickRef.current) return;
       lastToolTickRef.current = tc.tick;
       if (stoppingRef.current) return;
+
+      // Semantic stop. The LLM emits a brief goodbye in the same turn
+      // (per the tool description) — let that play out, then close. Hard
+      // cap at 4s so we never strand the user in a half-open voice loop
+      // if Ru forgot to include the goodbye or it never reaches Aura.
+      if (tc.name === "end_voice_session") {
+        const start = Date.now();
+        const id = setInterval(() => {
+          if (stoppingRef.current) {
+            clearInterval(id);
+            return;
+          }
+          // Wait until BOTH the audio has drained AND the chat stream is
+          // idle — otherwise we'd close while text is still arriving.
+          const stillSpeaking = isTTSPlaying();
+          const stillStreaming = useChatStore.getState().status === "streaming";
+          if ((!stillSpeaking && !stillStreaming) || Date.now() - start > 4000) {
+            clearInterval(id);
+            handleClose();
+          }
+        }, 100);
+        return;
+      }
+
       // Don't fill if Ru is already speaking — barge-in on her own filler
       // would be unpleasant. The fill is most useful in the gap between
       // tool_call_detected and the first text delta from the brain.
@@ -221,6 +249,9 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       void speakImmediate(filler, { format: "plain" });
     });
     return () => unsub();
+    // handleClose is stable (defined inside the component but only reads
+    // refs + calls the parent onClose), so safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Poll TTS playback while in tts_speaking — fire `first_audio` when
