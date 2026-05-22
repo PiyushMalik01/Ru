@@ -45,7 +45,6 @@ export function AuthForm({ mode }: AuthFormProps) {
         });
         if (error) throw error;
         router.push("/chat");
-        router.refresh();
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -56,7 +55,6 @@ export function AuthForm({ mode }: AuthFormProps) {
         });
         if (error) throw error;
         router.push("/chat");
-        router.refresh();
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
