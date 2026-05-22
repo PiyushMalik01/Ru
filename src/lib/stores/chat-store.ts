@@ -61,6 +61,21 @@ interface ChatState {
   setContinuousVoice: (v: boolean) => void;
   setPageContext: (ctx: PageContext | null) => void;
   sendText: (text: string, opts?: SendOptions) => Promise<void>;
+  /**
+   * Append a fully-formed (user, assistant) pair after a successful
+   * speculative voice turn. The IDs come from /api/chat/persist and the
+   * content is the buffered assistant text from the speculative LLM call.
+   * The voice orchestrator calls this once SpeculativeController.commit()
+   * returns usedSpeculative=true.
+   */
+  insertPersistedTurn: (turn: {
+    userMessageId: string;
+    assistantMessageId: string;
+    userText: string;
+    assistantText: string;
+    chatId: string;
+    voice?: boolean;
+  }) => void;
   /** Replace a user message's content and re-run from that point. */
   editMessage: (messageId: string, newContent: string) => Promise<void>;
   /** Drop the last assistant reply and re-run against the same prompt. */
@@ -142,6 +157,22 @@ async function getTTS(): Promise<TTSHandleType> {
   const { startTTS } = await import("@/lib/voice/tts");
   ttsHandle = await startTTS();
   return ttsHandle;
+}
+/**
+ * Exposed for the speculative-reply orchestrator — it needs to speak/flush
+ * through the same shared Aura connection that sendText uses, otherwise
+ * we'd be opening parallel WS connections. Returns the handle synchronously
+ * (lazily warming on first call via getTTS).
+ */
+export async function getTTSHandleForSpeculative(): Promise<{
+  speak: (text: string, opts?: { format?: "ssml" | "plain" }) => void;
+  flush: () => void;
+}> {
+  const tts = await getTTS();
+  return {
+    speak: (text, opts) => tts.speak(text, opts),
+    flush: () => tts.flush(),
+  };
 }
 /** Cut audio mid-turn but KEEP the WS open so the next turn doesn't pay the
  * handshake cost. Used between turns and on barge-in. */
@@ -280,6 +311,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setChatId: (chatId) => set({ chatId }),
   setMessages: (messages) => set({ messages }),
+
+  insertPersistedTurn: (turn) => {
+    const existing = get().messages;
+    const userMsg: ChatMessage = {
+      id: turn.userMessageId,
+      role: "user",
+      content: turn.userText,
+      cards: [],
+    };
+    const assistantMsg: ChatMessage = {
+      id: turn.assistantMessageId,
+      role: "assistant",
+      content: turn.assistantText,
+      cards: [],
+      streaming: false,
+    };
+    set({
+      messages: [...existing, userMsg, assistantMsg],
+      chatId: get().chatId ?? turn.chatId,
+      status: "idle",
+      thinking: "idle",
+      thinkingLabel: null,
+      errorMessage: null,
+    });
+  },
 
   setVoiceMode: (v) => {
     if (v) {

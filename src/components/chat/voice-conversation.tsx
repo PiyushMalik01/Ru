@@ -7,12 +7,21 @@ import {
   isTTSPlaying,
   setTTSSpeed,
   speakImmediate,
+  getTTSHandleForSpeculative,
 } from "@/lib/stores/chat-store";
 import { getFillerFor } from "@/lib/voice/tool-filler";
 import type { VoiceContext } from "@/lib/ai/engine/voice-persona";
+import {
+  startSpeculativeReply,
+  type SpeculativeController,
+} from "@/lib/voice/speculative-reply";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { startFlux, type FluxHandle } from "@/lib/voice/flux";
 import { startLocalVAD, type LocalVADHandle } from "@/lib/voice/local-vad";
+import {
+  createEOTConfirmer,
+  type EOTConfirmer,
+} from "@/lib/voice/eot-confirmer";
 import {
   createVoiceMachine,
   type VoicePhase,
@@ -66,6 +75,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const thinking = useChatStore((s) => s.thinking);
   const sendText = useChatStore((s) => s.sendText);
   const abort = useChatStore((s) => s.abort);
+  const insertPersistedTurn = useChatStore((s) => s.insertPersistedTurn);
 
   const setRuExpression = useRuCompanion((s) => s.setExpression);
   const ruClear = useRuCompanion((s) => s.clear);
@@ -84,6 +94,9 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const fluxRef = useRef<FluxHandle | null>(null);
   const vadRef = useRef<LocalVADHandle | null>(null);
   const machineRef = useRef<ReturnType<typeof createVoiceMachine> | null>(null);
+  const confirmerRef = useRef<EOTConfirmer | null>(null);
+  const vadTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const speculativeRef = useRef<SpeculativeController | null>(null);
   const finalBufRef = useRef("");
   const stoppingRef = useRef(false);
   // Last filler spoken — passed back into getFillerFor so the same phrase
@@ -143,10 +156,59 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       console.warn("[voice] watchdog fired in phase", stuck);
     });
 
+    // Smart EOT confirmer — composite gate over (Flux EOT confidence + local
+    // VAD sustained silence + no recent TurnResumed). Replaces the previous
+    // naked `if (e.confidence >= 0.7) commit()` check, which would fire
+    // while the user was still speaking on borderline confidences.
+    const confirmer = createEOTConfirmer();
+    confirmerRef.current = confirmer;
+    confirmer.onConfirmed((turn) => {
+      if (stoppingRef.current) return;
+      setDebugSignals((s) => ({
+        ...s,
+        lastEotConfidence: turn.confidence,
+        latencyMarkers: {
+          ...s.latencyMarkers,
+          eotConfirmMs: turn.confirmationLatencyMs,
+        },
+      }));
+      void commitConfirmed(turn.text);
+    });
+    confirmer.onTurnResumed(() => {
+      // User came back after Flux fired EOT — cancel any in-flight
+      // speculative LLM call and discard its buffered TTS. The smart EOT
+      // confirmer already cleared its pending EOT; we just have to drop
+      // the speculative session.
+      if (speculativeRef.current) {
+        speculativeRef.current.cancel();
+        speculativeRef.current = null;
+      }
+    });
+
+    // Tick the confirmer with VAD silence reading every 50ms. The reading
+    // is cheap (no audio analysis here — just a wall-clock delta against
+    // the last "speaking" frame). Without this the confirmer would only
+    // see VAD updates on speech transitions and could miss the silence
+    // threshold crossing in between.
+    vadTickerRef.current = setInterval(() => {
+      const vad = vadRef.current;
+      const c = confirmerRef.current;
+      if (!vad || !c) return;
+      c.push({ type: "vad_silence_ms", ms: vad.silenceMs() });
+    }, 50);
+
     void boot();
 
     return () => {
       stoppingRef.current = true;
+      if (vadTickerRef.current) clearInterval(vadTickerRef.current);
+      vadTickerRef.current = null;
+      confirmerRef.current?.dispose();
+      confirmerRef.current = null;
+      if (speculativeRef.current) {
+        speculativeRef.current.cancel();
+        speculativeRef.current = null;
+      }
       tearDownInputs();
       m.dispose();
       ruClear();
@@ -340,21 +402,48 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
                 ...s,
                 lastEotConfidence: e.confidence,
               }));
-              if (e.confidence >= 0.7) void commit();
+              // Hand off to the confirmer — the composite gate decides
+              // whether we actually commit. Use finalBufRef as the
+              // authoritative transcript because Flux emits `final` just
+              // before `eot` and the `eot` message itself doesn't carry
+              // text in the SDK shape.
+              confirmerRef.current?.push({
+                type: "flux_eot",
+                confidence: e.confidence,
+                text: finalBufRef.current,
+              });
               return;
             case "eager_eot":
               setDebugSignals((s) => ({
                 ...s,
                 lastEagerEotConfidence: e.confidence,
               }));
-              // Hand the signal to the FSM. The FSM treats it as a no-op
-              // phase-wise, but Phase 5 will use it to dispatch a
-              // speculative LLM call.
               mac.send({
                 type: "eager_eot_detected",
                 text: e.text,
                 confidence: e.confidence,
               });
+              // Speculative kick-off — Phase 5. Only fire if confidence is
+              // high enough to be useful (≥ 0.45 — Flux's threshold is
+              // 0.3 but those are mostly noise) and there's a real chatId
+              // (server requires it for speculative). One speculative at
+              // a time: if already running, don't restart on subsequent
+              // eager_eot events (which Flux can emit many of within a
+              // single turn).
+              if (
+                e.confidence >= 0.45 &&
+                e.text.trim().length > 0 &&
+                !speculativeRef.current &&
+                !stoppingRef.current
+              ) {
+                void startSpeculative(e.text);
+              }
+              return;
+            case "turn_resumed":
+              // User kept talking. Tell the confirmer to drop any pending
+              // EOT — and the FSM the eager-EOT was cancelled.
+              confirmerRef.current?.push({ type: "turn_resumed" });
+              mac.send({ type: "eager_eot_cancelled" });
               return;
             case "speech_started":
               onBargeIn(mac);
@@ -373,12 +462,35 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     }
   }
 
-  async function commit() {
-    const text = finalBufRef.current.trim();
+  async function startSpeculative(text: string) {
+    const chatId = useChatStore.getState().chatId;
+    if (!chatId) return; // First turn of a new chat — no speculative.
+    try {
+      const tts = await getTTSHandleForSpeculative();
+      const { controller } = startSpeculativeReply({
+        text,
+        chatId,
+        voiceContext: null,
+        pageContext: useChatStore.getState().pageContext,
+        tts,
+      });
+      speculativeRef.current = controller;
+    } catch (e) {
+      console.error("speculative start failed", e);
+    }
+  }
+
+  async function commitConfirmed(confirmedText: string) {
+    const text = confirmedText.trim();
     finalBufRef.current = "";
     setTranscript("");
     if (!text) return;
     if (isStopPhrase(text)) {
+      // Cancel any pending speculative — we're not going to play its reply.
+      if (speculativeRef.current) {
+        speculativeRef.current.cancel();
+        speculativeRef.current = null;
+      }
       handleClose();
       return;
     }
@@ -390,6 +502,46 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     // land back in `listening` after cooldown.
     tearDownInputs();
     machineRef.current?.send({ type: "commit", text });
+
+    // Speculative fast path — if there's an in-flight speculative LLM call
+    // whose text is close enough to the confirmed text, commit it. This
+    // skips the LLM call entirely on the hot path (the call started on
+    // eager_eot ~300-500ms ago and is often already buffered).
+    const speculative = speculativeRef.current;
+    speculativeRef.current = null;
+    if (speculative) {
+      const result = await speculative.commit(text);
+      if (result.usedSpeculative && result.userMessageId && result.assistantMessageId) {
+        const chatId = useChatStore.getState().chatId;
+        insertPersistedTurn({
+          userMessageId: result.userMessageId,
+          assistantMessageId: result.assistantMessageId,
+          userText: text,
+          assistantText: result.assistantText,
+          chatId: chatId ?? "",
+          voice: true,
+        });
+        // Paralinguistic extraction is fire-and-forget on the speculative
+        // path — the LLM call already finished, so voiceContext can't
+        // influence the prosody of THIS reply. We still record it for
+        // QA + future-turn carry-over (V2).
+        if (pcm && pcm.length > 0) {
+          void fetchFeatures(pcm, text)
+            .then((vc) => {
+              if (vc) {
+                setDebugSignals((s) => ({
+                  ...s,
+                  lastVoiceContext: vc as unknown as Record<string, unknown>,
+                }));
+              }
+            })
+            .catch(() => null);
+        }
+        return;
+      }
+      // Speculative was cancelled or texts diverged — fall through to a
+      // regular sendText below.
+    }
 
     // Paralinguistic side-channel. Fire-and-forget extraction: if the
     // network blips or the route errors we send chat normally without
@@ -405,10 +557,6 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
         ...s,
         lastVoiceContext: voiceContext as unknown as Record<string, unknown>,
       }));
-      // Rhythm mirroring: thread the user's pace through to Aura. Staged
-      // today (Aura WS ignores it) but audible the moment Deepgram ships
-      // runtime speed control — and the value still surfaces in the debug
-      // panel for QA.
       if (voiceContext.pace_wpm > 0) setTTSSpeed(voiceContext.pace_wpm);
     }
     void sendText(text, { voiceContext });
@@ -450,6 +598,12 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   function onBargeIn(m: ReturnType<typeof createVoiceMachine>) {
     const cur = m.current();
     if (cur === "tts_speaking" || cur === "tool_filling") {
+      // Drop any in-flight speculative — user is overriding the current
+      // reply with a new utterance.
+      if (speculativeRef.current) {
+        speculativeRef.current.cancel();
+        speculativeRef.current = null;
+      }
       abort();
       m.send({ type: "barge_in" });
     }

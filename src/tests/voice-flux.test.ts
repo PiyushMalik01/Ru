@@ -10,9 +10,10 @@ describe("flux event shape", () => {
       { type: "eot", confidence: 0.8, reason: "semantic" },
       { type: "speech_started" },
       { type: "eager_eot", text: "hello", confidence: 0.4 },
+      { type: "turn_resumed", text: "hello and also" },
       { type: "error", message: "boom" },
     ];
-    expect(samples).toHaveLength(7);
+    expect(samples).toHaveLength(8);
   });
 
   it("ringBuffer collects PCM frames bounded by maxBytes", async () => {

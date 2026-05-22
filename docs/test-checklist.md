@@ -226,6 +226,20 @@ Running list of things to manually verify before shipping. Add to it as features
 - [ ] **Latency benchmark** — run 50 voice turns; measure p50/p95 user-stops→ru-starts (target p50 ≤900ms, p95 ≤1200ms)
 - [ ] **Cost envelope** — verify <$0.05/voice-min on Deepgram dashboard
 
+### M1.1 — Smart EOT + speculative + fast model (2026-05-22)
+- [ ] **Composite EOT** — Ru never replies while user is still mid-sentence (smart confirmer holds until Flux EOT + VAD silence agree)
+- [ ] **EOT fast path** — high-confidence "thanks bye" / "that's it" → confirmer fires immediately (no extra silence wait)
+- [ ] **Flux trust fallback** — if local VAD is quiet but never reaches 200ms threshold (low-volume mic), confirmer fires after 1.5s anyway
+- [ ] **Speculative commit** — common case: user finishes, audio plays within ~300ms (speculative LLM already done)
+- [ ] **Speculative cancel** — user starts a sentence, pauses (eager_eot), keeps talking → no audio plays, no DB writes happen, no orphan messages
+- [ ] **Speculative text divergence** — user says "what's on my plate" then continues "...also remind me at 3pm" — texts diverge → speculative dropped, fresh sendText runs
+- [ ] **Speculative + tool side effects** — when speculative runs a tool then user cancels, the tool's side effect remains (KNOWN — document any observed cases)
+- [ ] **Speculative on first-turn-of-chat** — chatId is null → speculative skipped, normal sendText fires on confirmer
+- [ ] **Voice-fast model** — OpenAI BYOK voice turns use gpt-5-mini (not gpt-5); Anthropic uses claude-haiku-4-5 (not Opus/Sonnet); ChatGPT OAuth still uses codex
+- [ ] **Latency p50 with all 3 wins** — target p50 ≤700ms user-stops→ru-starts (was ~1.2-2s pre-M1.1)
+- [ ] **/api/chat/persist** — speculative-committed turns appear in chat correctly on reload; chat title derives from user message if "New chat"
+- [ ] **Barge-in during speculative-driven reply** — interrupt cleanly; speculative session cancelled; mic re-opens
+
 ---
 
 ## Notes / open questions

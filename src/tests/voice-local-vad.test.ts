@@ -124,4 +124,18 @@ describe("startLocalVAD", () => {
     expect(onSpeech).not.toHaveBeenCalled();
     handle.stop();
   });
+
+  it("exposes silenceMs and onActivity for the EOT confirmer", async () => {
+    const { startLocalVAD } = await import("@/lib/voice/local-vad");
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const onSpeech = vi.fn();
+    const handle = startLocalVAD(stream, onSpeech);
+    expect(typeof handle.silenceMs).toBe("function");
+    expect(typeof handle.onActivity).toBe("function");
+    // We stub performance.now() to a constant 0 — silenceMs at mount is 0.
+    expect(handle.silenceMs()).toBe(0);
+    const unsub = handle.onActivity(vi.fn());
+    expect(typeof unsub).toBe("function");
+    handle.stop();
+  });
 });

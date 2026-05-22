@@ -33,6 +33,25 @@ export function isSpeech(
 
 export interface LocalVADHandle {
   stop: () => void;
+  /**
+   * Snapshot the current sustained-silence duration in ms. The EOT confirmer
+   * polls this on every Flux signal — see eot-confirmer.ts. Returns 0 while
+   * the mic is detecting energy above threshold.
+   *
+   * The reading is monotonic until energy is detected: once `vad_speech`
+   * fires, the silence clock resets to 0 and starts ticking again the next
+   * frame after speech ends. We don't smooth or hysteresis-protect it
+   * because the confirmer already uses a 200ms floor — a single frame of
+   * spurious energy can't shake a confirmation that was about to fire
+   * anyway.
+   */
+  silenceMs: () => number;
+  /**
+   * Subscribe to the boolean "user is currently speaking" signal. Fires on
+   * every transition (speech_started, speech_ended). Confirmer uses this
+   * to update `vad_speech` / `vad_silence_ms`.
+   */
+  onActivity: (cb: (event: "speech_started" | "speech_ended") => void) => () => void;
 }
 
 const DEFAULT_THRESHOLD = 0.04;
@@ -59,6 +78,14 @@ export function startLocalVAD(
   const buf = new Float32Array(analyser.fftSize);
   let lastState = false;
   let speechStart = 0;
+  /**
+   * Wall-clock ms at which the mic last had energy above threshold. We
+   * start from "now" so the very first call to silenceMs() after mount
+   * returns ~0 (we haven't observed silence yet) instead of an absurd
+   * value like millions of ms.
+   */
+  let lastSpeechAt = performance.now();
+  let activitySubs: Array<(e: "speech_started" | "speech_ended") => void> = [];
   let raf = 0;
   let alive = true;
 
@@ -69,9 +96,11 @@ export function startLocalVAD(
     const now = performance.now();
     const speaking = isSpeech(rms, { lastState, threshold, hysteresis });
     if (speaking) {
+      lastSpeechAt = now;
       if (!lastState) {
         lastState = true;
         speechStart = now;
+        for (const cb of activitySubs) cb("speech_started");
       } else if (now - speechStart >= DEBOUNCE_MS) {
         // Fire once per speech onset; caller is responsible for not
         // over-handling repeats.
@@ -80,6 +109,9 @@ export function startLocalVAD(
         speechStart = Number.POSITIVE_INFINITY; // suppress repeat fires
       }
     } else {
+      if (lastState) {
+        for (const cb of activitySubs) cb("speech_ended");
+      }
       lastState = false;
       speechStart = 0;
     }
@@ -91,11 +123,23 @@ export function startLocalVAD(
     stop: () => {
       alive = false;
       cancelAnimationFrame(raf);
+      activitySubs = [];
       try {
         analyser.disconnect();
         source.disconnect();
         ctx.close();
       } catch {}
+    },
+    silenceMs: () => {
+      // While actively detecting speech, silenceMs is conceptually 0.
+      if (lastState) return 0;
+      return Math.max(0, performance.now() - lastSpeechAt);
+    },
+    onActivity: (cb) => {
+      activitySubs.push(cb);
+      return () => {
+        activitySubs = activitySubs.filter((x) => x !== cb);
+      };
     },
   };
 }

@@ -42,6 +42,21 @@ const BodySchema = z.object({
   mode: z.enum(["send", "edit", "regenerate"]).optional(),
   editTargetMessageId: z.string().uuid().optional(),
   regenerateTargetMessageId: z.string().uuid().optional(),
+  /**
+   * Speculative voice turn — run the LLM but DON'T persist any messages,
+   * DON'T update chat metadata. Used by voice-conversation to dispatch a
+   * reply on Flux's eager_eot signal so the LLM is already streaming by
+   * the time the user's full EOT confirms. If the user keeps talking
+   * (turn_resumed), the client aborts this request and nothing is saved.
+   * If the user truly stopped, the client calls /api/chat/persist with
+   * the buffered assistant text to save both messages atomically.
+   *
+   * Side effects from tool calls are NOT reverted on cancel — speculative
+   * cancellations can leak a created task / logged activity / etc.
+   * Acceptable trade-off: the smart EOT confirmer makes turn_resumed-
+   * after-tool-call rare in practice, and the latency win is large.
+   */
+  speculative: z.boolean().optional(),
 });
 
 const MODEL_DEFAULTS: Record<Provider, string> = {
@@ -49,6 +64,25 @@ const MODEL_DEFAULTS: Record<Provider, string> = {
   openai: process.env.OPENAI_MODEL_DEFAULT ?? "gpt-4o-mini",
   anthropic: process.env.ANTHROPIC_MODEL_DEFAULT ?? "claude-sonnet-4-6",
   gemini: process.env.GEMINI_MODEL_DEFAULT ?? "gemini-2.5-flash",
+};
+
+/**
+ * When the turn is voice, swap to a fast variant per provider. Conversational
+ * voice replies are 1-3 sentences and live or die on TTFT — the heavyweights
+ * (GPT-5, Opus 4.7) add 400-1000ms of time-to-first-token over their fast
+ * siblings without adding meaningful quality on short turns. The full
+ * persona + tools + memory pipeline are unchanged; only the model id is.
+ *
+ *   - openai      → gpt-5-mini   (vs gpt-5)
+ *   - anthropic   → claude-haiku-4-5  (vs Opus / Sonnet)
+ *   - gemini      → gemini-2.5-flash  (already fast — no change vs default)
+ *   - chatgpt_oauth → codex (no fast variant on the Codex backend)
+ */
+const VOICE_FAST_MODEL: Record<Provider, string | null> = {
+  chatgpt_oauth: null,
+  openai: "gpt-5-mini",
+  anthropic: "claude-haiku-4-5",
+  gemini: "gemini-2.5-flash",
 };
 
 /** Pick a friendly chat title from the first user message. */
@@ -99,15 +133,26 @@ export async function POST(req: NextRequest) {
     if (!creds.apiKey) return new Response("api key missing", { status: 412 });
     let apiKey: string;
     try { apiKey = decrypt(creds.apiKey); } catch { return new Response("api key unreadable", { status: 412 }); }
+    // Voice mode forces the fast variant per provider — short voice replies
+    // don't benefit from the heavyweight model and the latency saving is
+    // 400-1000ms of TTFT.
+    const voiceFast = parsed.data.voice === true ? VOICE_FAST_MODEL[provider] : null;
     config = {
       provider,
       apiKey,
-      model: creds.model ?? MODEL_DEFAULTS[provider],
+      model: voiceFast ?? creds.model ?? MODEL_DEFAULTS[provider],
     };
   }
 
+  const isSpeculative = parsed.data.speculative === true;
+
   // Resolve which chat this message belongs to. If the client didn't pass one,
   // either reuse the user's pinned current chat or create a new one.
+  //
+  // Speculative turns MUST pass an existing chatId — we don't want to create
+  // a chat we might later have to clean up if the speculative is cancelled.
+  // In practice the predictive-opening flow guarantees a chat exists before
+  // the user's first eager_eot.
   let chatId = parsed.data.chatId ?? null;
   if (chatId) {
     const { data: existing } = await supabase
@@ -117,6 +162,8 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id)
       .single();
     if (!existing) return new Response("chat not found", { status: 404 });
+  } else if (isSpeculative) {
+    return new Response("speculative requires chatId", { status: 400 });
   } else {
     const { data: prof } = await supabase
       .from("profiles")
@@ -204,12 +251,13 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id);
   }
 
-  // User-msg insert — skipped on edit (we updated in place) and on
-  // regenerate (the prior user msg is already there). Wrapped via
+  // User-msg insert — skipped on edit (we updated in place), regenerate
+  // (the prior user msg is already there), and speculative (the whole point
+  // of speculative is that we DON'T persist until commit). Wrapped via
   // Promise.resolve so the type collapses to a real Promise (the Supabase
   // builder is a PromiseLike that TS narrows in a way Promise.all flags).
   const userInsertP: Promise<unknown> =
-    mode === "send"
+    !isSpeculative && mode === "send"
       ? Promise.resolve(
           supabase
             .from("messages")
@@ -225,36 +273,45 @@ export async function POST(req: NextRequest) {
         )
       : Promise.resolve();
 
-  const assistantInsertP = supabase
-    .from("messages")
-    .insert({
-      id: assistantMsgId,
-      user_id: user.id,
-      chat_id: chatId,
-      role: "assistant",
-      content: "",
-      input_method: "text",
-    })
-    .then(({ error }) => { if (error) console.error("assistant msg insert failed", error); });
+  // Same for the assistant row — speculative gets a UUID for tool attribution
+  // (some tool handlers reference it) but we never insert.
+  const assistantInsertP: Promise<unknown> = isSpeculative
+    ? Promise.resolve()
+    : Promise.resolve(
+        supabase
+          .from("messages")
+          .insert({
+            id: assistantMsgId,
+            user_id: user.id,
+            chat_id: chatId,
+            role: "assistant",
+            content: "",
+            input_method: "text",
+          })
+          .then(({ error }) => { if (error) console.error("assistant msg insert failed", error); }),
+      );
 
-  // Chat title / updated_at — purely sidebar metadata. Defer until end of stream.
-  const chatMetaP = (async () => {
-    const { data: chatRow } = await supabase
-      .from("chats")
-      .select("title")
-      .eq("id", chatId!)
-      .single();
-    if (chatRow && (chatRow.title === "New chat" || chatRow.title.trim() === "")) {
-      return supabase
-        .from("chats")
-        .update({ title: deriveTitleFromMessage(parsed.data.message) })
-        .eq("id", chatId!);
-    }
-    return supabase
-      .from("chats")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", chatId!);
-  })();
+  // Chat title / updated_at — purely sidebar metadata. Defer until end of
+  // stream. Skip entirely on speculative — the persist endpoint handles it.
+  const chatMetaP: Promise<unknown> = isSpeculative
+    ? Promise.resolve()
+    : (async () => {
+        const { data: chatRow } = await supabase
+          .from("chats")
+          .select("title")
+          .eq("id", chatId!)
+          .single();
+        if (chatRow && (chatRow.title === "New chat" || chatRow.title.trim() === "")) {
+          return supabase
+            .from("chats")
+            .update({ title: deriveTitleFromMessage(parsed.data.message) })
+            .eq("id", chatId!);
+        }
+        return supabase
+          .from("chats")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", chatId!);
+      })();
 
   // Pull last 10 messages of this chat for enrichment recent-turn context.
   const recentTurnsForEnrichment = await supabase
@@ -354,29 +411,38 @@ export async function POST(req: NextRequest) {
         // metadata update — in parallel. None of these gate the user-visible
         // stream_end event, but we await them so the route doesn't return
         // before they settle (Vercel kills pending fetches otherwise).
-        try {
-          await Promise.all([
-            userInsertP,
-            supabase
-              .from("messages")
-              .update({ content: assistantText })
-              .eq("id", assistantMsgId),
-            chatMetaP,
-            // After the assistant content lands, bump updated_at once more so
-            // the sidebar shows the freshest order.
-            supabase
-              .from("chats")
-              .update({ updated_at: new Date().toISOString() })
-              .eq("id", chatId),
-          ]);
-        } catch (e) {
-          console.error("post-stream finalize failed", e);
+        //
+        // Speculative skips all writes: the persist endpoint owns them on
+        // commit. assistantText is still tracked through this loop so the
+        // stream_end can echo it back to the client, which will pass it to
+        // /api/chat/persist verbatim.
+        if (!isSpeculative) {
+          try {
+            await Promise.all([
+              userInsertP,
+              supabase
+                .from("messages")
+                .update({ content: assistantText })
+                .eq("id", assistantMsgId),
+              chatMetaP,
+              // After the assistant content lands, bump updated_at once more so
+              // the sidebar shows the freshest order.
+              supabase
+                .from("chats")
+                .update({ updated_at: new Date().toISOString() })
+                .eq("id", chatId),
+            ]);
+          } catch (e) {
+            console.error("post-stream finalize failed", e);
+          }
         }
         send({
           type: "stream_end",
-          userMessageId: userMsgId,
-          assistantMessageId: assistantMsgId,
+          userMessageId: isSpeculative ? null : userMsgId,
+          assistantMessageId: isSpeculative ? null : assistantMsgId,
           chatId,
+          speculative: isSpeculative,
+          assistantText: isSpeculative ? assistantText : undefined,
         });
         controller.close();
       }

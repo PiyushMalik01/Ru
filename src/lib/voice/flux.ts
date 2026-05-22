@@ -35,6 +35,10 @@ export type FluxEvent =
   // speculative LLM call. The transcript is what Flux thinks the turn
   // contained at this moment.
   | { type: "eager_eot"; text: string; confidence: number }
+  // User kept talking after an eager EOT (or after a low-confidence EOT
+  // that the confirmer was waiting on). The orchestrator uses this to
+  // cancel any in-flight speculative LLM call and discard buffered TTS.
+  | { type: "turn_resumed"; text: string }
   | { type: "error"; message: string };
 
 export interface FluxHandle {
@@ -214,8 +218,12 @@ export async function startFlux(callbacks: FluxCallbacks): Promise<FluxHandle> {
         callbacks.onEvent({ type: "eager_eot", text: transcript, confidence: conf });
         return;
       case "TurnResumed":
-        // User kept talking after an eager EOT — go back to interim mode.
+        // User kept talking after an eager EOT. Emit interim so the UI keeps
+        // updating, and a distinct turn_resumed event so the orchestrator
+        // can cancel any speculative LLM call + clear the confirmer's
+        // pending EOT.
         if (transcript) callbacks.onEvent({ type: "interim", text: transcript });
+        callbacks.onEvent({ type: "turn_resumed", text: transcript });
         return;
       case "EndOfTurn": {
         if (transcript) callbacks.onEvent({ type: "final", text: transcript });
