@@ -4,11 +4,13 @@ import { PushPrompt } from "@/components/app-shell/push-prompt";
 import { AppDock } from "@/components/app-shell/app-dock";
 import { ConfirmDialog } from "@/components/app-shell/confirm-dialog";
 import { RuGhost } from "@/components/ru-companion/ru-ghost";
+import { MemoryRolloutBanner } from "./_memory-rollout-banner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <TopNav />
+      <MemoryRolloutBanner />
       <SubNav />
       <PushPrompt />
       <main className="flex-1">{children}</main>
