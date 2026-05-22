@@ -35,7 +35,15 @@ export async function* streamAnthropic(input: StreamCompletionInput): AsyncGener
     {
       model: input.config.model,
       max_tokens: 4096,
-      system: system || undefined,
+      system: system
+        ? [
+            {
+              type: "text",
+              text: system,
+              cache_control: { type: "ephemeral" } as never,
+            },
+          ]
+        : undefined,
       messages: toAnthropic(rest) as never,
       tools: input.tools.length
         ? input.tools.map((t) => ({
