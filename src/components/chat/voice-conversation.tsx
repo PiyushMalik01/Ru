@@ -12,6 +12,10 @@ import {
 } from "@/lib/voice/state-machine";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import {
+  VoiceDebugPanel,
+  type VoiceDebugSignals,
+} from "./voice-debug-panel";
 
 // Phrases the user can say to end the conversation. Match case-insensitively
 // on the full final transcript, after light normalization.
@@ -61,6 +65,14 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
 
   const [transcript, setTranscript] = useState("");
   const [phase, setPhase] = useState<VoicePhase>("warming");
+  const [debugSignals, setDebugSignals] = useState<VoiceDebugSignals>({
+    phase: "warming",
+    lastEotConfidence: null,
+    lastEagerEotConfidence: null,
+    lastVoiceContext: null,
+    latencyMarkers: {},
+    sockets: { flux: false, aura: false },
+  });
 
   const fluxRef = useRef<FluxHandle | null>(null);
   const vadRef = useRef<LocalVADHandle | null>(null);
@@ -77,6 +89,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     machineRef.current = m;
     m.onPhaseChange((p) => {
       setPhase(p);
+      setDebugSignals((s) => ({ ...s, phase: p }));
       if (p === "listening") setRuExpression("happy");
       else if (p === "thinking") setRuExpression("thinking");
       else if (p === "tts_speaking" || p === "tool_filling")
@@ -196,6 +209,10 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
           switch (e.type) {
             case "ready":
               mac.send({ type: "ready" });
+              setDebugSignals((s) => ({
+                ...s,
+                sockets: { ...s.sockets, flux: true },
+              }));
               // Start local VAD on the same captured stream — dual-signal
               // barge-in. The handle owns its own AudioContext so it's
               // safe to start/stop independently of Flux's processor.
@@ -216,9 +233,17 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
               setTranscript(finalBufRef.current);
               return;
             case "eot":
+              setDebugSignals((s) => ({
+                ...s,
+                lastEotConfidence: e.confidence,
+              }));
               if (e.confidence >= 0.7) commit();
               return;
             case "eager_eot":
+              setDebugSignals((s) => ({
+                ...s,
+                lastEagerEotConfidence: e.confidence,
+              }));
               // Hand the signal to the FSM. The FSM treats it as a no-op
               // phase-wise, but Phase 5 will use it to dispatch a
               // speculative LLM call.
@@ -275,6 +300,10 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
     fluxRef.current = null;
     vadRef.current?.stop();
     vadRef.current = null;
+    setDebugSignals((s) => ({
+      ...s,
+      sockets: { ...s.sockets, flux: false },
+    }));
   }
 
   function handleClose() {
@@ -359,6 +388,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
           to interrupt
         </p>
       </div>
+      <VoiceDebugPanel signals={debugSignals} />
     </div>
   );
 }
