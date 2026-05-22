@@ -14,9 +14,20 @@ import { loadEntityCatalog } from "@/lib/queries/memory";
 
 export const dynamic = "force-dynamic";
 
+const VoiceContextSchema = z
+  .object({
+    energy: z.number().min(0).max(1),
+    pace_wpm: z.number().int().min(0).max(400),
+    pitch_variance: z.number().min(0).max(1),
+    emotion: z.enum(["calm", "excited", "tired", "tense", "sad", "casual"]),
+  })
+  .nullable()
+  .optional();
+
 const BodySchema = z.object({
   message: z.string().min(1).max(4000),
   voice: z.boolean().optional(),
+  voiceContext: VoiceContextSchema,
   chatId: z.string().uuid().optional(),
   /**
    * mode controls how this turn is recorded:
@@ -269,6 +280,7 @@ export async function POST(req: NextRequest) {
       chatId,
       newUserMessage: parsed.data.message,
       voice: parsed.data.voice ?? false,
+      voiceContext: parsed.data.voiceContext ?? null,
     }),
     entityCatalogP.then((catalog) =>
       enrichTurn({

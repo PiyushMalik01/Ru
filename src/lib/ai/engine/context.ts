@@ -3,6 +3,11 @@ import type { Database } from "@/types/database";
 import type { NormalizedMessage } from "../types";
 import { loadMemoryProfile, type MemoryProfile } from "@/lib/queries/memory";
 import { buildSystemPrompt } from "./system-prompt";
+import {
+  buildVoicePersonaBlock,
+  buildVoiceContextBlock,
+  type VoiceContext,
+} from "./voice-persona";
 
 export async function assembleContext(opts: {
   supabase: SupabaseClient<Database>;
@@ -10,9 +15,10 @@ export async function assembleContext(opts: {
   chatId: string;
   newUserMessage: string;
   voice?: boolean;
+  voiceContext?: VoiceContext | null;
   pageHint?: string | null;
 }): Promise<{ messages: NormalizedMessage[]; memoryProfile: MemoryProfile | null }> {
-  const { supabase, userId, chatId, newUserMessage, voice, pageHint } = opts;
+  const { supabase, userId, chatId, newUserMessage, voice, voiceContext, pageHint } = opts;
 
   // Pull this chat's history (most recent 60 messages — enough for continuity
   // without blowing token budgets). User-level state is fetched separately.
@@ -88,6 +94,17 @@ export async function assembleContext(opts: {
     },
     { role: "system", content: stateBlock },
   ];
+
+  // Voice persona + voiceContext blocks. Spliced in right after the main
+  // system prompt (index 1) so they take precedence over the stateBlock for
+  // tone, then voiceContext (index 2) follows the persona.
+  if (voice) {
+    messages.splice(1, 0, { role: "system", content: buildVoicePersonaBlock() });
+    const ctxBlock = buildVoiceContextBlock(voiceContext ?? null);
+    if (ctxBlock) {
+      messages.splice(2, 0, { role: "system", content: ctxBlock });
+    }
+  }
 
   // Page context — only included when the user is asking from a non-chat page.
   // Lets Ru's reply land where the user is already looking.
