@@ -83,6 +83,17 @@ let ttsHandle: TTSHandleType | null = null;
 export function isTTSPlaying(): boolean {
   return ttsHandle?.isPlaying() ?? false;
 }
+
+/**
+ * Rhythm mirroring (Phase 4): set Aura's output speed in WPM. The TTS layer
+ * clamps to a sane band and currently treats this as a staged stub because
+ * Aura's WS doesn't honor runtime speed control yet — but wiring the call
+ * here means callers don't change when it's available. Safe no-op when the
+ * TTS handle hasn't been created yet (first turn of the session).
+ */
+export function setTTSSpeed(wpm: number): void {
+  ttsHandle?.setSpeed(wpm);
+}
 async function getTTS(): Promise<TTSHandleType> {
   if (ttsHandle) return ttsHandle;
   const { startTTS } = await import("@/lib/voice/tts");

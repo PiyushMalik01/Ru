@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
+import {
+  useChatStore,
+  isTTSPlaying,
+  setTTSSpeed,
+} from "@/lib/stores/chat-store";
 import type { VoiceContext } from "@/lib/ai/engine/voice-persona";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { startFlux, type FluxHandle } from "@/lib/voice/flux";
@@ -303,6 +307,11 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
         ...s,
         lastVoiceContext: voiceContext as unknown as Record<string, unknown>,
       }));
+      // Rhythm mirroring: thread the user's pace through to Aura. Staged
+      // today (Aura WS ignores it) but audible the moment Deepgram ships
+      // runtime speed control — and the value still surfaces in the debug
+      // panel for QA.
+      if (voiceContext.pace_wpm > 0) setTTSSpeed(voiceContext.pace_wpm);
     }
     void sendText(text, { voiceContext });
   }
