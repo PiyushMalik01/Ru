@@ -55,13 +55,46 @@ export interface TTSHandle {
 const TTS_MODEL = "aura-2-thalia-en";
 const TTS_SAMPLE_RATE = 24000;
 
-/** Strip SSML markup, leaving only the speakable text. */
-function stripSSML(ssml: string): string {
-  // Replace `<break .../>` with a space so adjacent words don't fuse.
-  let out = ssml.replace(/<break\b[^>]*\/>/gi, " ");
-  // Drop all remaining tags but keep their inner text.
+/**
+ * Strip SSML markup, encoding prosody where Aura's neural TTS can still
+ * hear it.
+ *
+ * Aura's WS endpoint doesn't accept SSML — but it DOES read punctuation
+ * naturally. So instead of dropping `<break/>` (which yields a silent gap
+ * Aura reads through), we substitute Unicode ellipses and commas that
+ * Aura's prosody model pauses on by design.
+ *
+ * Mapping (durations from the prosody parser):
+ *   <break time="≤200ms"/>            → ", "      (a comma-sized beat)
+ *   <break/> or 201-499ms             → " … "    (one ellipsis ~ 300ms)
+ *   <break time="≥500ms"/>            → " …… "   (two ellipses ~ 700ms)
+ *
+ * Emphasis/prosody tags: we can't force volume or stress on Aura, so we
+ * drop the tags and keep the inner text — same word-stream, no SSML noise.
+ *
+ * Exported for `voice-tts-strip-ssml.test.ts`.
+ */
+export function stripSSML(ssml: string): string {
+  // Encode <break/> by duration. Order matters — long-first so the 500+
+  // bucket isn't shadowed by a generic match.
+  let out = ssml.replace(
+    /<break\b[^>]*time\s*=\s*["'](\d+)\s*ms["'][^>]*\/>/gi,
+    (_m, msStr) => {
+      const ms = Number(msStr) || 0;
+      if (ms <= 200) return ", ";
+      if (ms >= 500) return " …… ";
+      return " … ";
+    },
+  );
+  // Any <break/> without an explicit time → medium pause.
+  out = out.replace(/<break\b[^>]*\/>/gi, " … ");
+  // Drop all remaining tags but keep their inner text — emphasis/prosody
+  // become plain words (the LLM still picked the right word; the wrapper
+  // was a hint we couldn't honor anyway).
   out = out.replace(/<[^>]+>/g, "");
-  // Collapse any whitespace runs the strip created.
+  // Collapse whitespace runs the strip created, but leave the punctuation
+  // alone — Aura reads runs of "…" as a single longer pause, which is
+  // exactly what we want for the ≥500ms bucket.
   out = out.replace(/\s+/g, " ");
   return out;
 }
