@@ -6,7 +6,9 @@ import {
   useChatStore,
   isTTSPlaying,
   setTTSSpeed,
+  speakImmediate,
 } from "@/lib/stores/chat-store";
+import { getFillerFor } from "@/lib/voice/tool-filler";
 import type { VoiceContext } from "@/lib/ai/engine/voice-persona";
 import { useRuCompanion } from "@/lib/stores/ru-companion-store";
 import { startFlux, type FluxHandle } from "@/lib/voice/flux";
@@ -84,6 +86,13 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const machineRef = useRef<ReturnType<typeof createVoiceMachine> | null>(null);
   const finalBufRef = useRef("");
   const stoppingRef = useRef(false);
+  // Last filler spoken — passed back into getFillerFor so the same phrase
+  // doesn't repeat back-to-back when the same tool fires twice.
+  const lastFillerRef = useRef<string | undefined>(undefined);
+  // Last tool-call tick we acted on. The chat-store bumps a monotonic tick
+  // on every tool_call SSE event so we re-fire when the same tool runs
+  // twice in a row (zustand wouldn't otherwise re-notify on equal name).
+  const lastToolTickRef = useRef(0);
 
   // ---------------------------------------------------------------------
   // Mount: wire the FSM, boot Flux + local VAD. Empty deps — we never want
@@ -155,6 +164,34 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       m.send({ type: "tool_call_done" });
     }
   }, [thinking]);
+
+  // Tool-fill speech — Surpass #1. Whenever the SSE parser bumps the
+  // `lastToolCall` signal, speak a tool-appropriate filler so there's no
+  // dead air while the tool runs. We subscribe to the store imperatively
+  // (not via the selector) so we can dedupe by tick — Zustand selectors
+  // can't easily tell us "this is a fresh event" when name + tool stay the
+  // same back-to-back. Plain-format because fillers are short canned
+  // phrases; the prosody parser still translates any embedded [pause:Nms]
+  // tags into SSML <break/> on the way to Aura.
+  useEffect(() => {
+    const unsub = useChatStore.subscribe((state) => {
+      const tc = state.lastToolCall;
+      if (!tc) return;
+      if (tc.tick === lastToolTickRef.current) return;
+      lastToolTickRef.current = tc.tick;
+      if (stoppingRef.current) return;
+      // Don't fill if Ru is already speaking — barge-in on her own filler
+      // would be unpleasant. The fill is most useful in the gap between
+      // tool_call_detected and the first text delta from the brain.
+      if (isTTSPlaying()) return;
+      const filler = getFillerFor(tc.name, {
+        previousFiller: lastFillerRef.current,
+      });
+      lastFillerRef.current = filler;
+      void speakImmediate(filler, { format: "plain" });
+    });
+    return () => unsub();
+  }, []);
 
   // Poll TTS playback while in tts_speaking — fire `first_audio` when
   // audio actually starts (in case the `thinking` watcher above missed

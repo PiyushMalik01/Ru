@@ -27,6 +27,20 @@ export interface PageContext {
   workspaceId?: string;
 }
 
+/**
+ * Tool-call signal for voice subscribers (Phase 5 — tool-fill speech).
+ *
+ * Bumped from the SSE parser whenever a `tool_call` event lands. The `tick`
+ * counter exists so back-to-back calls to the same tool still fire the
+ * subscriber (Zustand only re-notifies on referential change). Voice
+ * subscribes to this in voice-conversation.tsx to speak a tool-appropriate
+ * filler ("Adding that now.") while the tool runs.
+ */
+export interface ToolCallSignal {
+  name: string;
+  tick: number;
+}
+
 interface ChatState {
   messages: ChatMessage[];
   status: "idle" | "streaming" | "error";
@@ -38,6 +52,7 @@ interface ChatState {
   hydrated: boolean;
   chatId: string | null;
   pageContext: PageContext | null;
+  lastToolCall: ToolCallSignal | null;
 
   hydrate: (messages: ChatMessage[], chatId: string | null) => void;
   setChatId: (chatId: string | null) => void;
@@ -93,6 +108,34 @@ export function isTTSPlaying(): boolean {
  */
 export function setTTSSpeed(wpm: number): void {
   ttsHandle?.setSpeed(wpm);
+}
+
+/**
+ * Speak a short out-of-band utterance immediately via the shared TTS handle.
+ *
+ * Used for:
+ *   - Tool fillers ("Adding that now.") spoken between tool_call_detected
+ *     and the first assistant text delta.
+ *   - Predictive openings spoken on voice mode open.
+ *
+ * Lazily warms the TTS handle on first call so we don't pay an extra
+ * handshake at mount when the user isn't actually going to speak. Plain-text
+ * format because these utterances are short canned phrases — the prosody
+ * parser still translates any embedded [pause:Nms] tags into <break/> SSML
+ * regardless of the format flag.
+ */
+export async function speakImmediate(
+  text: string,
+  opts?: { format?: "ssml" | "plain" },
+): Promise<void> {
+  if (!text.trim()) return;
+  try {
+    const tts = await getTTS();
+    tts.speak(text, { format: opts?.format ?? "plain" });
+    tts.flush();
+  } catch (e) {
+    console.error("speakImmediate failed", e);
+  }
 }
 async function getTTS(): Promise<TTSHandleType> {
   if (ttsHandle) return ttsHandle;
@@ -214,6 +257,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   hydrated: false,
   chatId: null,
   pageContext: null,
+  lastToolCall: null,
 
   setPageContext: (ctx) => set({ pageContext: ctx }),
 
@@ -468,7 +512,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
             await speakIfVoice(delta);
           } else if (event.type === "tool_call") {
             const call = event.call as { name?: string } | undefined;
-            set({ thinking: "tooling", thinkingLabel: humanizeToolName(call?.name) });
+            const toolName = call?.name ?? "";
+            const prevTick = get().lastToolCall?.tick ?? 0;
+            set({
+              thinking: "tooling",
+              thinkingLabel: humanizeToolName(toolName),
+              // Tick-bumped signal so voice subscribers can speak a filler
+              // even when the same tool fires back-to-back. Empty name still
+              // bumps so the subscriber can decide what to do (default bank).
+              lastToolCall: { name: toolName, tick: prevTick + 1 },
+            });
           } else if (event.type === "tool_result" && event.cardKind) {
             const msgs = get().messages.slice();
             const last = msgs[msgs.length - 1];
