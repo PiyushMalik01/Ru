@@ -23,10 +23,24 @@ export function createEmbedder(): Embedder {
       });
 
       if (!res.ok) {
-        const body = await res.text();
+        let body = "(body read failed)";
+        try {
+          body = await res.text();
+        } catch {
+          /* fall through */
+        }
         throw new Error(`embedder ${res.status}: ${body.slice(0, 200)}`);
       }
-      const data = (await res.json()) as { data: Array<{ embedding: number[]; index: number }> };
+      let parsed: unknown;
+      try {
+        parsed = await res.json();
+      } catch (e) {
+        throw new Error(`embedder: response was not JSON (${e instanceof Error ? e.message : "unknown"})`);
+      }
+      const data = parsed as { data?: Array<{ embedding: number[]; index: number }> };
+      if (!Array.isArray(data.data)) {
+        throw new Error("embedder: response missing data array");
+      }
       // Defensive: order by index — OpenAI usually returns sorted, but don't rely on it.
       const sorted = [...data.data].sort((a, b) => a.index - b.index);
       return sorted.map((d) => d.embedding);

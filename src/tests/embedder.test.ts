@@ -46,4 +46,15 @@ describe("embedder", () => {
     expect(result).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("throws a clear error when response is not JSON", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error("invalid json");
+      },
+    } as never);
+    const embedder = createEmbedder();
+    await expect(embedder.embed(["x"])).rejects.toThrow(/response was not JSON/);
+  });
 });
