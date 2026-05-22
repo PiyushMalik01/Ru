@@ -63,8 +63,9 @@ interface SendOptions {
 let abortController: AbortController | null = null;
 
 type TTSHandleType = {
-  speak: (text: string) => void;
+  speak: (text: string, opts?: { format?: "ssml" | "plain" }) => void;
   flush: () => void;
+  setSpeed: (wpm: number) => void;
   interrupt: () => void;
   stop: () => Promise<void>;
   isPlaying: () => boolean;
@@ -357,21 +358,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // with its own prosody, so flushing mid-sentence makes Ru sound stuttery.
     const flushBoundary = /[.!?\n]/;
 
-    // Strip markdown from each delta before Aura speaks — otherwise it reads
-    // "dot", "star", "hash" literally. Visual display still uses raw md.
-    const { createSpeakableStream } = await import("@/lib/voice/speakable");
-    const speakable = createSpeakableStream();
+    // Pipe each delta through the prosody parser. Markdown gets stripped and
+    // any inline prosody tags like [pause] / [soft]…[/soft] become SSML
+    // fragments. Aura doesn't formally accept SSML, but the TTS layer
+    // gracefully strips tags before send — meaning the prosody tags never
+    // get read literally, which is what we want either way. When Aura ships
+    // SSML support these chunks flow through unchanged.
+    const { createProsodyStream } = await import("@/lib/voice/prosody");
+    const prosody = createProsodyStream();
 
     const speakIfVoice = async (chunk: string, force: boolean = false) => {
       if (!get().voiceMode) return;
       try {
         const tts = await getTTS();
-        const spoken = chunk ? speakable.push(chunk) : (force ? speakable.flush() : "");
-        if (spoken) {
-          tts.speak(spoken);
-          charsSinceFlush += spoken.length;
+        const ssmlChunks = chunk ? prosody.push(chunk) : (force ? prosody.flush() : []);
+        let hitPunct = false;
+        for (const c of ssmlChunks) {
+          if (!c.ssml.trim()) continue;
+          tts.speak(c.ssml, { format: "ssml" });
+          // Track speakable (post-tag-translation) character count for the
+          // flush heuristic. SSML markup doesn't count toward the cap.
+          const spokenLen = c.ssml.replace(/<[^>]+>/g, "").length;
+          charsSinceFlush += spokenLen;
+          if (c.sentenceComplete) hitPunct = true;
+          if (flushBoundary.test(c.ssml)) hitPunct = true;
         }
-        const hitPunct = spoken ? flushBoundary.test(spoken) : false;
         // Char-cap is a fallback for run-on text with no punctuation. Raised
         // from 40 → 180 so we don't force-flush mid-sentence on average prose.
         if (force || hitPunct || charsSinceFlush >= 180) {
