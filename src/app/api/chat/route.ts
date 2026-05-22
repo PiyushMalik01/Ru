@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto";
 import { assembleContext } from "@/lib/ai/engine/context";
 import { runConversation } from "@/lib/ai/engine/stream";
+import { toolsForMode } from "@/lib/ai/tools/definitions";
 import { getValidChatGPTToken } from "@/lib/ai/openai-connection";
 import { CODEX_MODEL } from "@/lib/ai/providers/codex";
 import type { Provider, ProviderConfig } from "@/lib/ai/types";
@@ -338,6 +339,9 @@ export async function POST(req: NextRequest) {
           assistantMessageId: assistantMsgId,
           config,
           initialMessages: finalMessages,
+          // Voice mode unlocks `end_voice_session` so the LLM can detect
+          // semantic stop intent. Text turns get the standard tool list.
+          tools: toolsForMode({ voice: parsed.data.voice === true }),
           signal: req.signal,
         })) {
           if (event.type === "text") assistantText += event.delta;

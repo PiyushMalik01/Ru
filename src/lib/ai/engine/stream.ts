@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import type { ProviderConfig, StreamEvent, NormalizedMessage, NormalizedToolCall } from "../types";
+import type { ProviderConfig, StreamEvent, NormalizedMessage, NormalizedTool, NormalizedToolCall } from "../types";
 import { streamCompletion } from "../adapter";
 import { TOOL_DEFINITIONS } from "../tools/definitions";
 import { executeTool } from "../tools/executor";
@@ -13,9 +13,18 @@ export async function* runConversation(opts: {
   assistantMessageId: string;
   config: ProviderConfig;
   initialMessages: NormalizedMessage[];
+  /**
+   * Tool list to expose to the LLM for this conversation. Defaults to the
+   * full registry. Callers in voice mode pass an augmented list that
+   * includes `end_voice_session` so the LLM can semantically end the
+   * conversation. ChatGPT OAuth (Codex Responses API) accepts per-request
+   * tools, so this is a clean per-turn knob.
+   */
+  tools?: NormalizedTool[];
   signal?: AbortSignal;
 }): AsyncGenerator<StreamEvent> {
   const messages = [...opts.initialMessages];
+  const tools = opts.tools ?? TOOL_DEFINITIONS;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let fullText = "";
@@ -24,7 +33,7 @@ export async function* runConversation(opts: {
     for await (const event of streamCompletion({
       config: opts.config,
       messages,
-      tools: TOOL_DEFINITIONS,
+      tools,
       signal: opts.signal,
     })) {
       if (event.type === "text") {

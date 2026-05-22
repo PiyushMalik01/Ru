@@ -525,4 +525,49 @@ export const TOOL_DEFINITIONS: NormalizedTool[] = [
   },
 ];
 
+/**
+ * Voice-only tool: semantic stop intent.
+ *
+ * Surpass #5 — instead of brittle phrase matching for "stop", let the LLM
+ * decide when the user wants to end the voice conversation. Any phrasing
+ * works: "I gotta go", "bye Ru", "let's stop here", "we're done", "I'm
+ * out". The LLM emits a brief spoken goodbye in the same turn AND calls
+ * this tool; the client detects the tool call in the SSE stream, lets the
+ * goodbye finish playing, and then closes voice mode gracefully.
+ *
+ * Registered only when /api/chat receives `voice: true` so the LLM doesn't
+ * accidentally invoke it during text chat.
+ */
+export const END_VOICE_SESSION_TOOL: NormalizedTool = {
+  name: "end_voice_session",
+  description:
+    "Call this when the user wants to end the voice conversation — phrases like 'I gotta go', 'bye Ru', 'let's stop here', 'we're done', 'I'm out', or any other way of signalling they want to stop. ALSO include a brief spoken goodbye in your reply for the same turn (one short sentence — 'Catch you later.', 'Take care.', 'Talk soon.'). The client will let your goodbye finish playing, then close voice mode.",
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      reason: {
+        type: "string",
+        description: "Brief reason the user gave for ending. Use 'unspecified' if none.",
+      },
+    },
+    required: ["reason"],
+  },
+};
+
+/**
+ * Resolve the tool list to expose to the LLM for this turn.
+ *
+ * Voice mode adds `end_voice_session` so the LLM can semantically detect
+ * stop intent without relying on phrase matching. ChatGPT OAuth (Codex
+ * Responses API) accepts per-request tool arrays — verified in
+ * `providers/codex.ts` where `input.tools` is mapped onto the request
+ * body's `tools` field on each call. So per-request injection works
+ * cleanly; no need to register voice tools unconditionally.
+ */
+export function toolsForMode(opts: { voice: boolean }): NormalizedTool[] {
+  if (opts.voice) return [...TOOL_DEFINITIONS, END_VOICE_SESSION_TOOL];
+  return TOOL_DEFINITIONS;
+}
+
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name);
