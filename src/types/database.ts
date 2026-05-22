@@ -172,7 +172,7 @@ export type Database = {
           chat_id: string | null
           content: string
           created_at: string
-          embedding: string | null
+          embedding: number[] | null
           entity_refs: Json
           id: string
           importance: number
@@ -187,7 +187,7 @@ export type Database = {
           chat_id?: string | null
           content: string
           created_at?: string
-          embedding?: string | null
+          embedding?: number[] | null
           entity_refs?: Json
           id?: string
           importance?: number
@@ -202,7 +202,7 @@ export type Database = {
           chat_id?: string | null
           content?: string
           created_at?: string
-          embedding?: string | null
+          embedding?: number[] | null
           entity_refs?: Json
           id?: string
           importance?: number

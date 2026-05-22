@@ -29,6 +29,7 @@ import { modifyActivity, deleteActivity } from "./handlers/activity-mutations";
 import { renameWorkspace, archiveWorkspace } from "./handlers/workspace-mutations";
 import { updateProfile } from "./handlers/update-profile";
 import { renameChat, archiveChat } from "./handlers/chat-mutations";
+import { noteEpisode, updateProfile as updateMemoryProfile, forget } from "./handlers/memory";
 
 export interface ToolContext {
   supabase: SupabaseClient<Database>;
@@ -76,6 +77,9 @@ const HANDLERS: Record<string, Handler> = {
   update_profile: updateProfile,
   rename_chat: renameChat,
   archive_chat: archiveChat,
+  note_episode: noteEpisode,
+  update_memory_profile: updateMemoryProfile,
+  forget: forget,
 };
 
 export async function executeTool(
