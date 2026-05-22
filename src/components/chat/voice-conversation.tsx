@@ -95,6 +95,36 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const lastToolTickRef = useRef(0);
 
   // ---------------------------------------------------------------------
+  // Predictive opening — Surpass #3. Fire the /api/voice/opening fetch in
+  // parallel with mic permission so the greeting can speak the instant
+  // the TTS handle is warm. Best-effort: if the fetch fails, we just open
+  // in silence and the user starts the conversation. We DON'T want to
+  // block mic boot on this — a slow opening fetch must not delay
+  // listening. `speakImmediate` lazily warms the TTS handle if it isn't
+  // already up.
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/voice/opening", { method: "GET" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { greeting?: string; confidence?: number };
+        if (cancelled || stoppingRef.current) return;
+        if (typeof data.greeting === "string" && data.greeting.trim()) {
+          await speakImmediate(data.greeting, { format: "plain" });
+        }
+      } catch (e) {
+        // Network blip / route 500 — silent fail. Voice still works.
+        console.debug("voice opening fetch skipped", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------
   // Mount: wire the FSM, boot Flux + local VAD. Empty deps — we never want
   // to remount because some upstream ref changed.
   // ---------------------------------------------------------------------
