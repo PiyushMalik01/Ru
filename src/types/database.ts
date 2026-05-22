@@ -364,6 +364,7 @@ export type Database = {
         Row: {
           ai_credentials: Json | null
           ai_provider: Database["public"]["Enums"]["ai_provider_type"] | null
+          anticipation_level: Database["public"]["Enums"]["anticipation_level_type"]
           behavioral_model: Json
           created_at: string
           current_chat_id: string | null
@@ -383,6 +384,7 @@ export type Database = {
         Insert: {
           ai_credentials?: Json | null
           ai_provider?: Database["public"]["Enums"]["ai_provider_type"] | null
+          anticipation_level?: Database["public"]["Enums"]["anticipation_level_type"]
           behavioral_model?: Json
           created_at?: string
           current_chat_id?: string | null
@@ -402,6 +404,7 @@ export type Database = {
         Update: {
           ai_credentials?: Json | null
           ai_provider?: Database["public"]["Enums"]["ai_provider_type"] | null
+          anticipation_level?: Database["public"]["Enums"]["anticipation_level_type"]
           behavioral_model?: Json
           created_at?: string
           current_chat_id?: string | null
@@ -431,6 +434,60 @@ export type Database = {
             columns: ["current_workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promises: {
+        Row: {
+          created_at: string
+          due_by: string | null
+          id: string
+          metadata: Json
+          promised_at: string
+          resolved: boolean
+          resolved_at: string | null
+          source_message_id: string | null
+          subject: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_by?: string | null
+          id?: string
+          metadata?: Json
+          promised_at: string
+          resolved?: boolean
+          resolved_at?: string | null
+          source_message_id?: string | null
+          subject: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          due_by?: string | null
+          id?: string
+          metadata?: Json
+          promised_at?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          source_message_id?: string | null
+          subject?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promises_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promises_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -629,6 +686,125 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suggestion_actions: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          metadata: Json
+          suggestion_id: string
+          surface: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          suggestion_id: string
+          surface?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          suggestion_id?: string
+          surface?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestion_actions_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestion_actions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suggestions: {
+        Row: {
+          acted_at: string | null
+          confidence: number
+          created_at: string
+          dedup_key: string
+          dismissed_at: string | null
+          expires_at: string | null
+          id: string
+          message: string
+          payload: Json
+          priority: Database["public"]["Enums"]["suggestion_priority"]
+          show_at: string
+          shown_at: string | null
+          snooze_until: string | null
+          status: Database["public"]["Enums"]["suggestion_status"]
+          surfaced_briefing: boolean
+          surfaced_push: boolean
+          surfaced_toast: boolean
+          type: Database["public"]["Enums"]["suggestion_type"]
+          user_id: string
+        }
+        Insert: {
+          acted_at?: string | null
+          confidence: number
+          created_at?: string
+          dedup_key: string
+          dismissed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          message: string
+          payload: Json
+          priority?: Database["public"]["Enums"]["suggestion_priority"]
+          show_at: string
+          shown_at?: string | null
+          snooze_until?: string | null
+          status?: Database["public"]["Enums"]["suggestion_status"]
+          surfaced_briefing?: boolean
+          surfaced_push?: boolean
+          surfaced_toast?: boolean
+          type: Database["public"]["Enums"]["suggestion_type"]
+          user_id: string
+        }
+        Update: {
+          acted_at?: string | null
+          confidence?: number
+          created_at?: string
+          dedup_key?: string
+          dismissed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          message?: string
+          payload?: Json
+          priority?: Database["public"]["Enums"]["suggestion_priority"]
+          show_at?: string
+          shown_at?: string | null
+          snooze_until?: string | null
+          status?: Database["public"]["Enums"]["suggestion_status"]
+          surfaced_briefing?: boolean
+          surfaced_push?: boolean
+          surfaced_toast?: boolean
+          type?: Database["public"]["Enums"]["suggestion_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -928,6 +1104,7 @@ export type Database = {
     }
     Enums: {
       ai_provider_type: "chatgpt_oauth" | "openai" | "anthropic" | "gemini"
+      anticipation_level_type: "off" | "minimal" | "balanced" | "proactive"
       input_method_type: "text" | "voice"
       message_intent:
         | "log"
@@ -942,6 +1119,20 @@ export type Database = {
       reminder_status: "pending" | "sent" | "dismissed"
       routine_frequency: "daily" | "weekdays" | "weekly" | "custom"
       routine_origin: "auto_detected" | "user_declared"
+      suggestion_priority: "soft" | "urgent"
+      suggestion_status:
+        | "pending"
+        | "shown"
+        | "acted"
+        | "dismissed"
+        | "snoozed"
+        | "expired"
+      suggestion_type:
+        | "routine_adherence"
+        | "task_urgency"
+        | "routine_candidate"
+        | "promise_followup"
+        | "cross_thread"
       task_priority: "low" | "medium" | "high"
       task_status: "pending" | "in_progress" | "completed" | "missed"
     }
@@ -1072,6 +1263,7 @@ export const Constants = {
   public: {
     Enums: {
       ai_provider_type: ["chatgpt_oauth", "openai", "anthropic", "gemini"],
+      anticipation_level_type: ["off", "minimal", "balanced", "proactive"],
       input_method_type: ["text", "voice"],
       message_intent: [
         "log",
@@ -1087,6 +1279,22 @@ export const Constants = {
       reminder_status: ["pending", "sent", "dismissed"],
       routine_frequency: ["daily", "weekdays", "weekly", "custom"],
       routine_origin: ["auto_detected", "user_declared"],
+      suggestion_priority: ["soft", "urgent"],
+      suggestion_status: [
+        "pending",
+        "shown",
+        "acted",
+        "dismissed",
+        "snoozed",
+        "expired",
+      ],
+      suggestion_type: [
+        "routine_adherence",
+        "task_urgency",
+        "routine_candidate",
+        "promise_followup",
+        "cross_thread",
+      ],
       task_priority: ["low", "medium", "high"],
       task_status: ["pending", "in_progress", "completed", "missed"],
     },

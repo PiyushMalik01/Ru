@@ -1,7 +1,29 @@
 // src/lib/ai/engine/enrich.ts
+//
+// Promise-extraction wiring (added with the anticipation work):
+//
+// Rather than spin a second LLM call, we EXTEND the existing enrichment
+// schema with a `promises` array. The cheap-sibling model already sees the
+// user message + recent turns + entity catalog, so adding 1 field to the
+// JSON shape costs near-zero latency. The Zod schema treats `promises` as
+// optional (no breaking change for older provider responses) and we insert
+// rows into the `promises` table from a *separate* fire-and-forget helper
+// (`persistExtractedPromises`) so a DB hiccup never blocks the chat turn.
+//
+// Callers that have a supabase client + the user's id + the source message
+// id can pass them via the new optional `persistPromises` option; if any of
+// those are missing we silently skip persistence (the chat route opts in,
+// unit tests opt out).
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 import type { ProviderConfig, NormalizedMessage } from "../types";
 import type { EntityCatalog } from "@/lib/queries/memory";
+
+export interface ExtractedPromise {
+  subject: string;
+  due_by_iso?: string;
+}
 
 export interface TurnEnrichment {
   resolvedEntities: {
@@ -18,6 +40,7 @@ export interface TurnEnrichment {
   }>;
   sentiment: "positive" | "neutral" | "low" | "stressed" | null;
   voiceContext: { disfluencies: number; self_corrections: number } | null;
+  promises: ExtractedPromise[];
 }
 
 const EnrichmentSchema = z.object({
@@ -35,6 +58,15 @@ const EnrichmentSchema = z.object({
   })),
   sentiment: z.enum(["positive", "neutral", "low", "stressed"]).nullable(),
   voiceContext: z.object({ disfluencies: z.number(), self_corrections: z.number() }).nullable(),
+  promises: z
+    .array(
+      z.object({
+        subject: z.string().min(1),
+        due_by_iso: z.string().optional(),
+      })
+    )
+    .optional()
+    .default([]),
 });
 
 const EMPTY: TurnEnrichment = {
@@ -43,6 +75,7 @@ const EMPTY: TurnEnrichment = {
   memorySignals: [],
   sentiment: null,
   voiceContext: null,
+  promises: [],
 };
 
 const TIMEOUT_MS = 600;
@@ -56,6 +89,17 @@ export async function enrichTurn(opts: {
   timezone: string;
   config: ProviderConfig;
   signal?: AbortSignal;
+  /**
+   * Optional promise persistence side-channel. Fire-and-forget: if `supabase`,
+   * `userId`, and `sourceMessageId` are all present we insert any extracted
+   * promises into the `promises` table. Failures are logged + swallowed so
+   * they can never block the chat turn.
+   */
+  persistPromises?: {
+    supabase: SupabaseClient<Database>;
+    userId: string;
+    sourceMessageId: string | null;
+  };
 }): Promise<TurnEnrichment | null> {
   // For ChatGPT OAuth users, skip the LLM call to avoid burning their quota.
   // Use pure-SQL/rule-based fallback (entity match only).
@@ -69,18 +113,69 @@ export async function enrichTurn(opts: {
     opts.signal.addEventListener("abort", () => ac.abort());
   }
 
+  let result: TurnEnrichment | null = null;
   try {
     const raw = await callEnrichmentModel(opts, ac.signal);
     const parsed = EnrichmentSchema.safeParse(raw);
     if (!parsed.success) {
-      // Drop fields that don't validate, return partial best-effort.
-      return mergeWithEmpty(raw);
+      result = mergeWithEmpty(raw);
+    } else {
+      result = parsed.data;
     }
-    return parsed.data;
   } catch {
-    return fallbackEnrichment(opts);
+    result = fallbackEnrichment(opts);
   } finally {
     clearTimeout(timeout);
+  }
+
+  // Side channel: persist extracted promises. Fire-and-forget — never throws.
+  if (result && result.promises.length > 0 && opts.persistPromises) {
+    void persistExtractedPromises({
+      promises: result.promises,
+      nowIso: opts.nowIso,
+      ...opts.persistPromises,
+    });
+  }
+
+  return result;
+}
+
+async function persistExtractedPromises(args: {
+  promises: ExtractedPromise[];
+  nowIso: string;
+  supabase: SupabaseClient<Database>;
+  userId: string;
+  sourceMessageId: string | null;
+}): Promise<void> {
+  try {
+    const rows = args.promises
+      .map((p) => {
+        const subject = p.subject?.trim();
+        if (!subject) return null;
+        let dueBy: string | null = null;
+        if (p.due_by_iso) {
+          const parsed = Date.parse(p.due_by_iso);
+          if (Number.isFinite(parsed)) {
+            dueBy = new Date(parsed).toISOString();
+          }
+        }
+        return {
+          user_id: args.userId,
+          subject,
+          promised_at: args.nowIso,
+          due_by: dueBy,
+          source_message_id: args.sourceMessageId,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    if (rows.length === 0) return;
+    const { error } = await args.supabase.from("promises").insert(rows);
+    if (error) {
+      console.error("enrichTurn: promise insert failed", error);
+    }
+  } catch (e) {
+    console.error("enrichTurn: promise persist threw", e);
   }
 }
 
@@ -124,6 +219,7 @@ function mergeWithEmpty(raw: unknown): TurnEnrichment {
     memorySignals: Array.isArray(safe.memorySignals) ? safe.memorySignals : [],
     sentiment: safe.sentiment ?? null,
     voiceContext: safe.voiceContext ?? null,
+    promises: Array.isArray(safe.promises) ? safe.promises : [],
   };
 }
 
@@ -211,7 +307,8 @@ function buildEnrichmentSystemPrompt(opts: { voice: boolean; nowIso: string; tim
   "intentHints": ["log_activity", "..."],
   "memorySignals": [{ "kind": "preference_reveal | life_event | correction | strong_opinion | plan_statement", "span": "..." }],
   "sentiment": "positive | neutral | low | stressed | null",
-  "voiceContext": ${opts.voice ? '{ "disfluencies": 0, "self_corrections": 0 }' : "null"}
+  "voiceContext": ${opts.voice ? '{ "disfluencies": 0, "self_corrections": 0 }' : "null"},
+  "promises": [{ "subject": "short verb phrase the user committed to", "due_by_iso": "optional ISO timestamp" }]
 }
 
 Rules:
@@ -221,6 +318,7 @@ Rules:
 - intentHints come from this set ONLY: log_activity, create_task, modify_task, complete_task, create_reminder, declare_routine, complete_routine, skip_routine_today, create_tracker, log_tracker_entry, query_analytics, update_profile, note_episode, forget, chit_chat.
 - memorySignals: only emit one when there's a clear span; do not invent.
 - ${opts.voice ? "Voice mode: count disfluencies (um, uh, like, you know) and self-corrections (e.g. 'I mean')." : "Text mode: voiceContext is null."}
+- promises: Only emit when the user CLEARLY commits to a future action with first-person intent — "I'll X tomorrow", "I'm going to Y", "I should Z this week", "I promise to W". DO NOT extract idle commentary, hypotheticals ("if I had time I'd..."), questions, or things the user is asking Ru to do. The subject should be a concise verb phrase ("call mom", "finish the OChem essay"). If there is no clear due date, omit due_by_iso entirely.
 - Output ONLY the JSON object. No prose.`;
 }
 

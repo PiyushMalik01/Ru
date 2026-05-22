@@ -350,6 +350,18 @@ export async function POST(req: NextRequest) {
         timezone: profileTimezone,
         config,
         signal: req.signal,
+        // Fire-and-forget promise extraction. Speculative turns skip persistence
+        // entirely (the user msg isn't saved either, so source_message_id would
+        // dangle). Non-speculative turns may have userMsgId = null only on
+        // regenerate; in that case the promise still gets recorded without a
+        // source link.
+        persistPromises: isSpeculative
+          ? undefined
+          : {
+              supabase,
+              userId: user.id,
+              sourceMessageId: mode === "send" ? userMsgId : null,
+            },
       })
     ),
     retrieveEpisodes({

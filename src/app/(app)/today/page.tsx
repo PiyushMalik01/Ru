@@ -11,6 +11,7 @@ import { BentoPlan, BentoPlanEmpty } from "@/components/today/bento-plan";
 import { BentoWeek } from "@/components/today/bento-week";
 import { BentoUpNext } from "@/components/today/bento-up-next";
 import { BentoLog } from "@/components/today/bento-log";
+import { AnticipationSection } from "@/components/today/anticipation-section";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +147,10 @@ export default async function TodayPage() {
         </h1>
         <Squiggle className="mt-5 text-muted-foreground" width={200} />
       </div>
+
+      {/* Ru noticed — anticipation row. Renders nothing if no pending
+          suggestions; takes precedence above the bento when it has content. */}
+      <AnticipationSection />
 
       {/* Bento grid — six tiles, asymmetric, F-pattern.
           NOW   (col-span-2 row-span-2)  STREAK

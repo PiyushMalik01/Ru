@@ -1,5 +1,6 @@
 import { inngest } from "../client";
 import { sendPushToUser } from "@/lib/push";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const pushReminderFire = inngest.createFunction(
   { id: "push-reminder-fire", triggers: [{ event: "reminder.fire" }] },
@@ -50,5 +51,40 @@ export const pushTaskMissed = inngest.createFunction(
         url: "/tasks",
       })
     );
+  }
+);
+
+/**
+ * Push for an urgent anticipation suggestion. Title is the humanized type;
+ * body is Ru's phrased one-liner. After the push is queued, marks the
+ * suggestion row with `surfaced_push = true` so the next cron sweep doesn't
+ * re-push it. Best-effort: a failed UPDATE doesn't fail the push.
+ */
+const TYPE_TITLE: Record<string, string> = {
+  routine_adherence: "Routine reminder",
+  task_urgency: "Task needs attention",
+  routine_candidate: "Ru noticed a pattern",
+  promise_followup: "Following up",
+  cross_thread: "Pulling a thread",
+};
+
+export const pushSuggestionUrgent = inngest.createFunction(
+  { id: "push-suggestion-urgent", triggers: [{ event: "suggestion.urgent" }] },
+  async ({ event, step }) => {
+    await step.run("send", () =>
+      sendPushToUser(event.data.userId, {
+        title: TYPE_TITLE[event.data.type] ?? "Ru noticed",
+        body: event.data.message,
+        url: "/today",
+      })
+    );
+    await step.run("mark-surfaced", async () => {
+      const supabase = createServiceClient();
+      const { error } = await supabase
+        .from("suggestions")
+        .update({ surfaced_push: true })
+        .eq("id", event.data.suggestionId);
+      if (error) console.error("mark-surfaced failed", error);
+    });
   }
 );

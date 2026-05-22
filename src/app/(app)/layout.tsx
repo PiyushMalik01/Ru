@@ -4,6 +4,7 @@ import { PushPrompt } from "@/components/app-shell/push-prompt";
 import { AppDock } from "@/components/app-shell/app-dock";
 import { ConfirmDialog } from "@/components/app-shell/confirm-dialog";
 import { RuGhost } from "@/components/ru-companion/ru-ghost";
+import { SuggestionToast } from "@/components/anticipation/suggestion-toast";
 import { MemoryRolloutBanner } from "./_memory-rollout-banner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           - /chat → the full floating pill (existing UX)
           - everywhere else → a slim "Ask Ru" pill + overlay summoner */}
       <AppDock />
+      {/* Anticipation toast — listens for new suggestions via Supabase
+          realtime and surfaces them as a soft pill toast above the pill. */}
+      <SuggestionToast />
       {/* Promise-based global confirm dialog. Replaces window.confirm() so
           delete/archive prompts match the platform aesthetic. */}
       <ConfirmDialog />
