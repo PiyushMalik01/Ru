@@ -28,12 +28,27 @@ export type FluxEvent =
   | { type: "final"; text: string }
   | { type: "eot"; confidence: number; reason: "silence" | "semantic" | "timeout" }
   | { type: "speech_started" }
+  // EagerEndOfTurn — Flux thinks the user has likely finished, but the
+  // confidence is below the full EOT threshold. We surface it as its own
+  // variant so the orchestrator can (a) hand it to the FSM as
+  // `eager_eot_detected` for telemetry, and (b) in Phase 5, kick off a
+  // speculative LLM call. The transcript is what Flux thinks the turn
+  // contained at this moment.
+  | { type: "eager_eot"; text: string; confidence: number }
   | { type: "error"; message: string };
 
 export interface FluxHandle {
   stop: () => void;
   /** Snapshot the last ~10s of raw PCM as Float32 for paralinguistic extraction. */
   snapshotPCM: () => Float32Array;
+  /**
+   * The underlying captured MediaStream. Exposed so callers (e.g., voice
+   * conversation orchestrator) can run a local VAD on the SAME stream
+   * Flux is consuming, instead of calling `getUserMedia` a second time.
+   * Echo cancellation is per-stream, so re-grabbing produces a parallel
+   * stream that may not be echo-cancelled relative to the playback path.
+   */
+  stream: MediaStream;
 }
 
 export interface PCMRingBuffer {
@@ -190,10 +205,13 @@ export async function startFlux(callbacks: FluxCallbacks): Promise<FluxHandle> {
         if (transcript) callbacks.onEvent({ type: "interim", text: transcript });
         return;
       case "EagerEndOfTurn":
-        // Treat as a strong "final-ish" transcript signal. Confidence is
-        // below the commit threshold so the caller's EOT handler won't fire,
-        // but we surface the transcript so the UI can show it.
-        if (transcript) callbacks.onEvent({ type: "final", text: transcript });
+        // Surface as its own variant so the orchestrator can fire
+        // `eager_eot_detected` to the FSM (Phase 5 will use this for
+        // speculative LLM calls). Also emit `interim` so the UI keeps
+        // showing the latest transcript without committing yet — Flux
+        // might still send TurnResumed.
+        if (transcript) callbacks.onEvent({ type: "interim", text: transcript });
+        callbacks.onEvent({ type: "eager_eot", text: transcript, confidence: conf });
         return;
       case "TurnResumed":
         // User kept talking after an eager EOT — go back to interim mode.
@@ -236,5 +254,6 @@ export async function startFlux(callbacks: FluxCallbacks): Promise<FluxHandle> {
       for (let i = 0; i < int16.length; i++) float[i] = int16[i] / 0x8000;
       return float;
     },
+    stream,
   };
 }
