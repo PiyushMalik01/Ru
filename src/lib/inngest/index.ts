@@ -2,8 +2,7 @@ export { inngest } from "./client";
 import { reminderDispatcher } from "./functions/reminder-dispatcher";
 import { missedDeadlines } from "./functions/missed-deadlines";
 import { streakCalculator } from "./functions/streak-nudge";
-import { routineDetection } from "./functions/routine-detection";
-import { dailySummary } from "./functions/daily-summary";
+import { memoryConsolidate } from "./functions/memory-consolidate";
 import {
   pushReminderFire,
   pushStreakMilestone,
@@ -15,8 +14,7 @@ export const functions = [
   reminderDispatcher,
   missedDeadlines,
   streakCalculator,
-  routineDetection,
-  dailySummary,
+  memoryConsolidate,
   pushReminderFire,
   pushStreakMilestone,
   pushRoutineDetected,
