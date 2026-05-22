@@ -20,6 +20,12 @@ export class AudioPlayer {
   private ctx: AudioContext;
   private next = 0;
   private sources: AudioBufferSourceNode[] = [];
+  // Count of audio sources currently scheduled or playing. Replaces the old
+  // `currentTime < next` check, which was race-prone: AudioContext.currentTime
+  // advances at the system clock rate independent of whether any source is
+  // actually wired to the destination, so `next === currentTime` could read as
+  // "not playing" mid-utterance.
+  private active = 0;
 
   constructor() {
     const AudioContextClass: typeof AudioContext =
@@ -45,11 +51,13 @@ export class AudioPlayer {
     const now = this.ctx.currentTime;
     const start =
       this.next > now ? this.next : now + JITTER_LEAD_S;
-    src.start(start);
     src.onended = () => {
+      this.active = Math.max(0, this.active - 1);
       const i = this.sources.indexOf(src);
       if (i >= 0) this.sources.splice(i, 1);
     };
+    src.start(start);
+    this.active += 1;
     this.next = start + audio.duration;
     this.sources.push(src);
   }
@@ -64,6 +72,7 @@ export class AudioPlayer {
     }
     this.sources = [];
     this.next = this.ctx.state === "closed" ? 0 : this.ctx.currentTime;
+    this.active = 0;
   }
 
   async stop() {
@@ -74,6 +83,6 @@ export class AudioPlayer {
   }
 
   get playing(): boolean {
-    return this.ctx.state === "running" && this.ctx.currentTime < this.next;
+    return this.active > 0;
   }
 }
