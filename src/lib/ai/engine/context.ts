@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type { NormalizedMessage } from "../types";
+import { loadMemoryProfile, type MemoryProfile } from "@/lib/queries/memory";
 import { buildSystemPrompt } from "./system-prompt";
 
 export async function assembleContext(opts: {
@@ -10,12 +11,12 @@ export async function assembleContext(opts: {
   newUserMessage: string;
   voice?: boolean;
   pageHint?: string | null;
-}): Promise<NormalizedMessage[]> {
+}): Promise<{ messages: NormalizedMessage[]; memoryProfile: MemoryProfile | null }> {
   const { supabase, userId, chatId, newUserMessage, voice, pageHint } = opts;
 
   // Pull this chat's history (most recent 60 messages — enough for continuity
   // without blowing token budgets). User-level state is fetched separately.
-  const [profileRes, chatMessagesRes, summariesRes, routinesRes, tasksRes] = await Promise.all([
+  const [profileRes, chatMessagesRes, summariesRes, routinesRes, tasksRes, memoryProfile] = await Promise.all([
     supabase.from("profiles").select("display_name, timezone").eq("id", userId).single(),
     supabase
       .from("messages")
@@ -42,6 +43,7 @@ export async function assembleContext(opts: {
       .in("status", ["pending", "in_progress"])
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(20),
+    loadMemoryProfile(supabase, userId),
   ]);
 
   const profile = profileRes.data;
@@ -101,5 +103,5 @@ export async function assembleContext(opts: {
     { role: "user", content: newUserMessage }
   );
 
-  return messages;
+  return { messages, memoryProfile };
 }
