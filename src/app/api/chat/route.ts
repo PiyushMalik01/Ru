@@ -7,6 +7,10 @@ import { runConversation } from "@/lib/ai/engine/stream";
 import { getValidChatGPTToken } from "@/lib/ai/openai-connection";
 import { CODEX_MODEL } from "@/lib/ai/providers/codex";
 import type { Provider, ProviderConfig } from "@/lib/ai/types";
+import { enrichTurn } from "@/lib/ai/engine/enrich";
+import { retrieveEpisodes, topUpEpisodesByEntity } from "@/lib/ai/engine/retrieve";
+import { injectMemoryBlocks } from "@/lib/ai/engine/memory-blocks";
+import { loadEntityCatalog } from "@/lib/queries/memory";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +60,14 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("ai_provider, ai_credentials")
+    .select("ai_provider, ai_credentials, timezone")
     .eq("id", user.id)
     .single();
   if (!profile?.ai_provider || !profile.ai_credentials) {
     return new Response("AI provider not configured. Connect ChatGPT or add an API key in Settings.", { status: 412 });
   }
+
+  const profileTimezone = profile?.timezone ?? "UTC";
 
   const provider = profile.ai_provider as Provider;
   let config: ProviderConfig;
@@ -238,9 +244,25 @@ export async function POST(req: NextRequest) {
       .eq("id", chatId!);
   })();
 
-  // Wait only for what's strictly needed: the model's context, and the
-  // assistant row existing so tools can attribute to it.
-  const [messages] = await Promise.all([
+  // Pull last 10 messages of this chat for enrichment recent-turn context.
+  const recentTurnsForEnrichment = await supabase
+    .from("messages")
+    .select("role, content")
+    .eq("user_id", user.id)
+    .eq("chat_id", chatId!)
+    .order("created_at", { ascending: false })
+    .limit(10)
+    .then((r) =>
+      ((r.data ?? []) as Array<{ role: "user" | "assistant"; content: string }>)
+        .reverse()
+    );
+
+  // One catalog fetch shared with enrichment (only enrichment needs it).
+  const entityCatalogP = loadEntityCatalog(supabase, user.id);
+
+  // Wait only for what's strictly needed: the model's context, enrichment,
+  // episodes, and the assistant row existing so tools can attribute to it.
+  const [{ messages, memoryProfile }, enrichment, fastEpisodes] = await Promise.all([
     assembleContext({
       supabase,
       userId: user.id,
@@ -248,8 +270,49 @@ export async function POST(req: NextRequest) {
       newUserMessage: parsed.data.message,
       voice: parsed.data.voice ?? false,
     }),
+    entityCatalogP.then((catalog) =>
+      enrichTurn({
+        userMessage: parsed.data.message,
+        recentTurns: recentTurnsForEnrichment.map((m) => ({ role: m.role, content: m.content })),
+        entityCatalog: catalog,
+        voice: parsed.data.voice ?? false,
+        nowIso: new Date().toISOString(),
+        timezone: profileTimezone,
+        config,
+        signal: req.signal,
+      })
+    ),
+    retrieveEpisodes({
+      supabase,
+      userId: user.id,
+      userMessage: parsed.data.message,
+      recentTurns: recentTurnsForEnrichment.map((m) => ({ role: m.role, content: m.content })),
+      signal: req.signal,
+    }),
     assistantInsertP,
   ]);
+
+  // Entity top-up: if enrichment surfaced entity ids we didn't recall, fetch their episodes.
+  let episodes = fastEpisodes;
+  if (enrichment && memoryProfile?.memory_enabled !== false) {
+    const entityIds = {
+      tasks:      enrichment.resolvedEntities.tasks.map((t) => t.id),
+      routines:   enrichment.resolvedEntities.routines.map((r) => r.id),
+      trackers:   enrichment.resolvedEntities.trackers.map((t) => t.id),
+      workspaces: enrichment.resolvedEntities.workspaces.map((w) => w.id),
+    };
+    episodes = await topUpEpisodesByEntity({
+      supabase,
+      userId: user.id,
+      fastEpisodes,
+      entityIds,
+    });
+  }
+
+  // Inject memory blocks; if memory is disabled for this user, skip injection.
+  const finalMessages = memoryProfile?.memory_enabled === false
+    ? messages
+    : injectMemoryBlocks(messages, { profile: memoryProfile, episodes, enrichment });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -262,7 +325,7 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           assistantMessageId: assistantMsgId,
           config,
-          initialMessages: messages,
+          initialMessages: finalMessages,
           signal: req.signal,
         })) {
           if (event.type === "text") assistantText += event.delta;

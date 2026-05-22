@@ -38,11 +38,11 @@ export async function retrieveEpisodes(opts: {
     return [];
   }
 
-  const rpcCall = opts.supabase.rpc("match_episodes" as never, {
+  const rpcCall = Promise.resolve(opts.supabase.rpc("match_episodes" as never, {
     p_user_id: opts.userId,
     p_query_embedding: embedding as never,
     p_limit: FETCH_TOP_K,
-  } as never);
+  } as never));
 
   const result = await withTimeout(rpcCall, SOFT_TIMEOUT_MS, null);
   if (!result || (result as { error?: unknown }).error || !(result as { data?: unknown[] }).data) {
