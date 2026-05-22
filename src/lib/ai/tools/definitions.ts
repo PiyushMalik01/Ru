@@ -475,6 +475,19 @@ export const TOOL_DEFINITIONS: NormalizedTool[] = [
     },
   },
   {
+    name: "update_memory_profile",
+    description:
+      "When the user states a fact about themselves that belongs in the profile (moved, changed name, new job, life situation change, strong preference declaration). Pass the section and the natural-language update. The consolidation job merges it into the section cleanly; an immediate light patch runs so the change is visible right away. Do not narrate this in your reply.",
+    parameters: {
+      type: "object",
+      properties: {
+        section: { type: "string", enum: ["identity", "preferences", "current_themes", "active_projects", "ru_and_me"] },
+        update: { type: "string", description: "Natural-language statement, e.g. 'Moved from Seattle to Tokyo in May 2026.'" },
+      },
+      required: ["section", "update"],
+    },
+  },
+  {
     name: "note_episode",
     description:
       "Record something memory-worthy that just happened in this turn: a preference reveal, a decision, a life event, a correction, a strong opinion, a stated plan. Write a brief 1-3 sentence summary in third person about the user. Skip trivial chat (thanks, ok, idk) and things already captured by structured tools (creating a task is not an episode — the task itself is the record). Do not narrate this in your reply.",
