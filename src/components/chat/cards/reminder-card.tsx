@@ -1,15 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Repeat, Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState, useTransition } from "react";
+import { Repeat, Bell, Check, Clock } from "lucide-react";
+import {
+  dismissReminderInline,
+  snoozeReminderInline,
+} from "@/app/(app)/chat/card-actions";
+import {
+  CardActions,
+  CardLabel,
+  PrimaryAction,
+  SecondaryAction,
+  ActionError,
+} from "./task-card";
 
 export interface ReminderCardData {
   id: string;
   title: string;
   remind_at?: string | null;
   is_recurring?: boolean;
+  status?: "pending" | "dismissed" | string;
 }
 
 function formatRemind(t?: string | null): string {
@@ -24,60 +34,88 @@ function formatRemind(t?: string | null): string {
   return `${day} · ${time}`;
 }
 
-// Full coral tile, dark type. Bell glyph anchored top-left.
 export function ReminderCard({ data }: { data: ReminderCardData }) {
-  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<"pending" | "dismissed">(
+    data.status === "dismissed" ? "dismissed" : "pending",
+  );
+  const [remindAt, setRemindAt] = useState<string | null | undefined>(data.remind_at);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function doDismiss() {
+    setError(null);
+    startTransition(async () => {
+      const res = await dismissReminderInline(data.id);
+      if (res.ok) setStatus("dismissed");
+      else setError(res.error ?? "Couldn't dismiss.");
+    });
+  }
+  function doSnooze(minutes: number) {
+    setError(null);
+    startTransition(async () => {
+      const res = await snoozeReminderInline(data.id, minutes);
+      if (res.ok && res.state) setRemindAt(res.state.remind_at);
+      else setError(res.error ?? "Couldn't snooze.");
+    });
+  }
 
   return (
     <div
-      className={cn(
-        "group block w-full overflow-hidden rounded-2xl transition-transform",
-        "hover:-translate-y-0.5"
-      )}
+      className="block w-full overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5"
       style={{
         background: "var(--entity-reminder)",
         color: "var(--entity-reminder-fg)",
       }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-5 py-4 text-left"
-      >
+      <div className="flex items-center gap-3 px-5 py-4">
         <Bell className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
-          reminder
-        </span>
-        <div className="min-w-0 flex-1 truncate text-[14.5px] font-medium leading-tight">
+        <CardLabel>reminder</CardLabel>
+        <div
+          className="min-w-0 flex-1 truncate text-[14.5px] leading-tight"
+          style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+        >
           {data.title}
         </div>
         {data.is_recurring && (
           <Repeat className="h-3.5 w-3.5 shrink-0 opacity-75" aria-hidden />
         )}
-        {data.remind_at && (
-          <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-85">
-            {formatRemind(data.remind_at)}
+        {remindAt && (
+          <span
+            className="shrink-0 text-[11px] tabular-nums opacity-85"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+          >
+            {formatRemind(remindAt)}
           </span>
         )}
-      </button>
+      </div>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
+      <CardActions>
+        {status === "pending" ? (
+          <>
+            <PrimaryAction onClick={doDismiss} pending={pending}>
+              <Check className="h-3 w-3" strokeWidth={3} />
+              done
+            </PrimaryAction>
+            <SecondaryAction onClick={() => doSnooze(10)} pending={pending}>
+              <Clock className="h-3 w-3" strokeWidth={2.5} />
+              +10m
+            </SecondaryAction>
+            <SecondaryAction onClick={() => doSnooze(60)} pending={pending}>
+              <Clock className="h-3 w-3" strokeWidth={2.5} />
+              +1h
+            </SecondaryAction>
+          </>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-black/85 px-3 py-1.5 text-[11.5px] text-white"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
           >
-            <div className="flex items-center gap-3 border-t border-black/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-80">
-              <span>{data.is_recurring ? "recurring" : "one-time"}</span>
-              <span className="opacity-50">·</span>
-              <span>{data.remind_at ? new Date(data.remind_at).toLocaleString() : "—"}</span>
-            </div>
-          </motion.div>
+            <Check className="h-3 w-3" strokeWidth={3} />
+            dismissed
+          </span>
         )}
-      </AnimatePresence>
+      </CardActions>
+      {error && <ActionError>{error}</ActionError>}
     </div>
   );
 }

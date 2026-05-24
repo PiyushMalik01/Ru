@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useTransition } from "react";
+import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  completeRoutineInline,
+  skipRoutineInline,
+} from "@/app/(app)/chat/card-actions";
+import {
+  CardActions,
+  CardLabel,
+  CardMeta,
+  PrimaryAction,
+  SecondaryAction,
+  ActionError,
+} from "./task-card";
 
 export interface RoutineCardData {
   id: string;
@@ -10,57 +22,86 @@ export interface RoutineCardData {
   frequency?: string;
   time_of_day?: string | null;
   streak?: number;
+  /** Card-event variants: "done" / "skipped_today" / undefined (just a declaration). */
+  status?: "done" | "skipped_today" | string;
 }
 
-// Full lime tile, BLACK type. Streak as the hero number in Fraunces.
+// Full lime tile, black type. Streak as the hero number in Fraunces.
 export function RoutineCard({ data }: { data: RoutineCardData }) {
-  const [open, setOpen] = useState(false);
+  const [today, setToday] = useState<"done" | "skipped" | "none">(
+    data.status === "done"
+      ? "done"
+      : data.status === "skipped_today"
+        ? "skipped"
+        : "none",
+  );
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
   const streak = Math.max(0, data.streak ?? 0);
   const weekFilled = streak % 7 === 0 && streak > 0 ? 7 : streak % 7;
 
+  function doDone() {
+    setError(null);
+    startTransition(async () => {
+      const res = await completeRoutineInline(data.id);
+      if (res.ok) setToday("done");
+      else setError(res.error ?? "Couldn't mark done.");
+    });
+  }
+  function doSkip() {
+    setError(null);
+    startTransition(async () => {
+      const res = await skipRoutineInline(data.id);
+      if (res.ok) setToday("skipped");
+      else setError(res.error ?? "Couldn't skip.");
+    });
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => setOpen((v) => !v)}
-      className={cn(
-        "block w-full overflow-hidden rounded-2xl text-left transition-transform",
-        "hover:-translate-y-0.5"
-      )}
+    <div
+      className="block w-full overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5"
       style={{
         background: "var(--entity-routine)",
         color: "var(--entity-routine-fg)",
       }}
     >
       <div className="flex items-center gap-2 px-5 pt-4">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
-          routine
-        </span>
+        <CardLabel>routine</CardLabel>
         {data.frequency && (
           <>
             <span className="opacity-40">·</span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] opacity-80">
-              {data.frequency}
-            </span>
+            <CardMeta>{data.frequency}</CardMeta>
           </>
         )}
         {data.time_of_day && (
-          <span className="ml-auto font-mono text-[11px] tabular-nums opacity-85">
+          <span
+            className="ml-auto text-[11px] tabular-nums opacity-85"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+          >
             {data.time_of_day}
           </span>
         )}
       </div>
 
-      <div className="flex items-end gap-4 px-5 pb-4 pt-2">
+      <div className="flex items-end gap-4 px-5 pb-3 pt-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className="font-display text-[44px] leading-none tracking-tight tabular-nums">
+            <span
+              className="font-display text-[44px] leading-none tracking-tight tabular-nums"
+              style={{ fontVariationSettings: "'wght' 620, 'opsz' 144" }}
+            >
               {streak}
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] opacity-75">
-              day streak
-            </span>
+            <CardLabel>day streak</CardLabel>
           </div>
-          <div className="mt-2 truncate text-[15px] font-medium leading-tight">
+          <div
+            className={cn(
+              "mt-2 truncate text-[15px] leading-tight",
+              today === "skipped" && "opacity-70",
+            )}
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+          >
             {data.title}
           </div>
         </div>
@@ -73,7 +114,7 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
                 key={i}
                 className={cn(
                   "h-5 w-[3px] rounded-full",
-                  filled ? "bg-black" : "bg-black/20"
+                  filled ? "bg-black" : "bg-black/20",
                 )}
               />
             );
@@ -81,21 +122,39 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
         </div>
       </div>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-black/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-75">
-              <span>this week · {weekFilled}/7</span>
-            </div>
-          </motion.div>
+      <CardActions>
+        {today === "none" && (
+          <>
+            <PrimaryAction onClick={doDone} pending={pending}>
+              <Check className="h-3 w-3" strokeWidth={3} />
+              done today
+            </PrimaryAction>
+            <SecondaryAction onClick={doSkip} pending={pending}>
+              <X className="h-3 w-3" strokeWidth={2.5} />
+              skip today
+            </SecondaryAction>
+          </>
         )}
-      </AnimatePresence>
-    </button>
+        {today === "done" && (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-black/85 px-3 py-1.5 text-[11.5px] text-white"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+          >
+            <Check className="h-3 w-3" strokeWidth={3} />
+            done · streak {streak + 1}
+          </span>
+        )}
+        {today === "skipped" && (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-black/12 px-3 py-1.5 text-[11.5px]"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+          >
+            <X className="h-3 w-3" strokeWidth={2.5} />
+            skipped today
+          </span>
+        )}
+      </CardActions>
+      {error && <ActionError>{error}</ActionError>}
+    </div>
   );
 }

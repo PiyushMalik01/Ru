@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  completeTaskInline,
+  reopenTaskInline,
+} from "@/app/(app)/chat/card-actions";
 
 export interface TaskCardData {
   id: string;
@@ -25,64 +28,161 @@ function formatDue(due?: string | null): string {
   return `${day}, ${time}`;
 }
 
-// Full saturated cobalt tile. White type. Chunky rounded. The card IS the color.
 export function TaskCard({ data }: { data: TaskCardData }) {
-  const [open, setOpen] = useState(false);
-  const completed = data.status === "completed";
+  const [status, setStatus] = useState<"pending" | "completed" | string>(
+    data.status ?? "pending",
+  );
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const completed = status === "completed";
+
+  function toggle() {
+    setError(null);
+    const fn = completed ? reopenTaskInline : completeTaskInline;
+    const nextStatus = completed ? "pending" : "completed";
+    startTransition(async () => {
+      const res = await fn(data.id);
+      if (res.ok && res.state) {
+        setStatus(nextStatus);
+      } else {
+        setError(res.error ?? "Couldn't update.");
+      }
+    });
+  }
 
   return (
-    <button
-      type="button"
-      onClick={() => setOpen((v) => !v)}
-      className={cn(
-        "group block w-full overflow-hidden rounded-2xl text-left transition-transform",
-        "hover:-translate-y-0.5"
-      )}
+    <div
+      className="block w-full overflow-hidden rounded-2xl"
       style={{
         background: "var(--entity-task)",
         color: "var(--entity-task-fg)",
       }}
     >
-      <div className="flex items-center gap-3 px-5 py-4">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
-          task
-        </span>
+      <div className="flex items-center gap-3 px-5 pt-4">
+        <CardLabel>task</CardLabel>
         <span className="opacity-40">·</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] opacity-80">
-          {data.priority ?? "no priority"}
-        </span>
+        <CardMeta>{data.priority ?? "no priority"}</CardMeta>
         {data.due_at && (
-          <span className="ml-auto font-mono text-[11px] tabular-nums opacity-85">
+          <span className="ml-auto text-[11px] tabular-nums opacity-85" style={meta}>
             {formatDue(data.due_at)}
           </span>
         )}
       </div>
-      <div className="flex items-start gap-3 px-5 pb-4">
+      <div className="flex items-start gap-3 px-5 pb-3 pt-2">
         <div
           className={cn(
-            "flex-1 text-[15px] font-medium leading-snug",
-            completed && "line-through opacity-60"
+            "flex-1 text-[15px] leading-snug",
+            completed && "line-through opacity-60",
           )}
+          style={{ fontVariationSettings: "'wght' 540, 'wdth' 96" }}
         >
           {data.title}
         </div>
-        {completed && <Check className="h-4 w-4 shrink-0 opacity-80" aria-hidden />}
       </div>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-white/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-75">
-              {completed ? "completed" : "open"} · click to {open ? "close" : "expand"}
-            </div>
-          </motion.div>
+      <CardActions>
+        {!completed ? (
+          <PrimaryAction onClick={toggle} pending={pending}>
+            <Check className="h-3 w-3" strokeWidth={3} />
+            done
+          </PrimaryAction>
+        ) : (
+          <SecondaryAction onClick={toggle} pending={pending}>
+            <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
+            undo
+          </SecondaryAction>
         )}
-      </AnimatePresence>
+      </CardActions>
+      {error && <ActionError>{error}</ActionError>}
+    </div>
+  );
+}
+
+// ==================== shared card sub-components ====================
+
+const meta = { fontVariationSettings: "'wght' 580, 'wdth' 100" } as const;
+
+export function CardLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="text-[10px] uppercase tracking-[0.18em] opacity-75"
+      style={meta}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function CardMeta({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="text-[10px] uppercase tracking-[0.16em] opacity-80"
+      style={meta}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function CardActions({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 border-t border-black/15 px-3 py-2.5">
+      {children}
+    </div>
+  );
+}
+
+export function PrimaryAction({
+  children,
+  onClick,
+  pending,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  pending?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="inline-flex items-center gap-1.5 rounded-full bg-black/85 px-3 py-1.5 text-[11.5px] text-white transition-colors hover:bg-black disabled:opacity-50"
+      style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+    >
+      {pending ? "…" : children}
     </button>
+  );
+}
+
+export function SecondaryAction({
+  children,
+  onClick,
+  pending,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  pending?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="inline-flex items-center gap-1.5 rounded-full bg-black/12 px-3 py-1.5 text-[11.5px] text-current transition-colors hover:bg-black/22 disabled:opacity-50"
+      style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+    >
+      {pending ? "…" : children}
+    </button>
+  );
+}
+
+export function ActionError({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="border-t border-black/15 bg-black/12 px-5 py-2 text-[11px]"
+      style={{ fontVariationSettings: "'wght' 500, 'wdth' 96" }}
+    >
+      {children}
+    </div>
   );
 }
