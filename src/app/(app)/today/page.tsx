@@ -129,9 +129,12 @@ export default async function TodayPage() {
       {/* Greeting masthead — chunky display greeting on the left, weekday + live clock on the right. */}
       <header className="flex items-center justify-between gap-4">
         <div>
-          <div className="font-display text-[22px] leading-none sm:text-[26px]">
+          <div
+            className="h-section lowercase"
+            style={{ fontVariationSettings: "'wght' 720, 'wdth' 96, 'opsz' 26" }}
+          >
             {greeting}
-            {firstName ? `, ${firstName}` : ""}.
+            {firstName ? `, ${firstName.toLowerCase()}` : ""}
           </div>
           <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
             {head.weekday} · {head.date}
@@ -140,10 +143,10 @@ export default async function TodayPage() {
         <NowMarker />
       </header>
 
-      {/* Standfirst — the cover line. Fraunces, large, anchors the page. */}
+      {/* Standfirst — chunky lowercase Bricolage anchors the page. */}
       <div className="mt-10 max-w-3xl">
-        <h1 className="font-display text-[36px] leading-[1.03] text-foreground sm:text-[52px]">
-          {standfirst}
+        <h1 className="h-page lowercase">
+          {standfirst.replace(/\.$/, "")}
         </h1>
         <Squiggle className="mt-5 text-muted-foreground" width={200} />
       </div>

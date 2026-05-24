@@ -95,8 +95,8 @@ export default async function RoutinesPage() {
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           routines · {dayName} {dateStr}
         </div>
-        <h1 className="mt-4 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
-          The rhythm.
+        <h1 className="h-page-sm mt-4 lowercase">
+          the rhythm
         </h1>
         {totalActive > 0 ? (
           <p
@@ -173,8 +173,8 @@ export default async function RoutinesPage() {
       <section className="space-y-5">
         <div className="flex items-baseline justify-between gap-4 border-b border-[var(--hairline-soft)] pb-3">
           <div>
-            <h2 className="font-display text-[28px] leading-[1.02] tracking-tight">
-              Trackers
+            <h2 className="h-section lowercase">
+              trackers
             </h2>
             <p className="mt-1 text-[13px] text-muted-foreground">
               Quantitative logs — runs, workouts, anything you want to follow

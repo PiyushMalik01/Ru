@@ -88,6 +88,38 @@ Line two.`;
     expect(out).not.toMatch(/\n{3,}/);
   });
 
+  it("strips entity-data JSON (tracker/values/notes shape)", () => {
+    // Real leak observed in production chat history.
+    const txt = `Updated the log.
+{"tracker":"Open Source Contributions","values":{"org":"Jenkins","status":"closed","issue":"documentation fix"},"notes":"User clarified the last log is now closed."}
+Anything else?`;
+    const out = scrubAssistantText(txt);
+    expect(out).not.toContain('"tracker"');
+    expect(out).not.toContain('"values"');
+    expect(out).not.toContain("Jenkins");
+    expect(out).toContain("Updated the log.");
+    expect(out).toContain("Anything else?");
+  });
+
+  it("unwraps paired prosody tags, keeping inner content", () => {
+    const txt = `Done. [warm]Take care.[/warm]`;
+    const out = scrubAssistantText(txt);
+    expect(out).not.toContain("[warm]");
+    expect(out).not.toContain("[/warm]");
+    expect(out).toContain("Take care.");
+    expect(out).toContain("Done.");
+  });
+
+  it("strips solo prosody tags", () => {
+    const txt = `Sure. [pause:300ms] Let me check. [laughs] Got it.`;
+    const out = scrubAssistantText(txt);
+    expect(out).not.toContain("[pause");
+    expect(out).not.toContain("[laughs]");
+    expect(out).toContain("Sure.");
+    expect(out).toContain("Let me check.");
+    expect(out).toContain("Got it.");
+  });
+
   it("handles multiple leaks in one message", () => {
     const txt = `First: <function_call>a</function_call>
 Then: \`\`\`json

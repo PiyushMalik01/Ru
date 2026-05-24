@@ -400,8 +400,8 @@ function SheetMasthead() {
         <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
           sheet
         </div>
-        <h1 className="mt-3 font-display text-[36px] leading-[1.02] tracking-tight sm:text-[42px]">
-          Every thread, in one column.
+        <h1 className="h-page-sm mt-3 lowercase">
+          every thread, in one column
         </h1>
       </div>
       <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50 sm:block">
@@ -441,10 +441,13 @@ function EmptyState({
   return (
     <div className="mt-20 py-20 text-center">
       <p
-        className="font-display italic text-[22px] leading-[1.15] tracking-[-0.01em] text-muted-foreground"
-        style={{ fontStyle: "italic" }}
+        className="lowercase text-[22px] leading-[1.15] text-muted-foreground"
+        style={{
+          fontVariationSettings: "'wght' 540, 'wdth' 96",
+          letterSpacing: "-0.015em",
+        }}
       >
-        {msg}
+        {msg.replace(/\.$/, "").toLowerCase()}
       </p>
     </div>
   );

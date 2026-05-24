@@ -51,8 +51,8 @@ export default async function PlansPage() {
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
             plans · {head.weekday} {head.date}
           </div>
-          <h1 className="mt-4 font-display text-[44px] leading-[0.98] tracking-[-0.02em] sm:text-[56px]">
-            The arcs in motion.
+          <h1 className="h-page mt-4 lowercase">
+            arcs in motion
           </h1>
           <p className="mt-4 max-w-xl text-[14.5px] leading-relaxed text-muted-foreground">
             Long-running threads — study plans, projects, recoveries. Each plan

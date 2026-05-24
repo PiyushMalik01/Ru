@@ -70,8 +70,8 @@ export default async function InsightsPage() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           Insights · last 30 days
         </div>
-        <h1 className="font-display text-[44px] leading-[1.02] tracking-tight text-foreground sm:text-[68px]">
-          The shape of a month.
+        <h1 className="h-page lowercase">
+          the shape of a month
         </h1>
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <p
@@ -126,7 +126,7 @@ export default async function InsightsPage() {
       <section className="mt-20">
         <SectionHead
           eyebrow="Activity"
-          title="Every day, in a grid."
+          title="every day, in a grid"
           meta={`${totalActivities.toString().padStart(3, "0")} entries`}
         />
         <div className="mt-8 overflow-x-auto">
@@ -139,7 +139,7 @@ export default async function InsightsPage() {
       <section className="mt-20">
         <SectionHead
           eyebrow="Routines"
-          title="The streak board."
+          title="the streak board"
           meta={`${sortedRoutines.length.toString().padStart(2, "0")} active`}
         />
         <div className="mt-6">
@@ -151,7 +151,7 @@ export default async function InsightsPage() {
       <section className="mt-20">
         <SectionHead
           eyebrow="By category"
-          title="What you logged."
+          title="what you logged"
           meta={`${data.activityByCategory.length
             .toString()
             .padStart(2, "0")} categories`}
@@ -165,7 +165,7 @@ export default async function InsightsPage() {
       <section className="mt-20">
         <SectionHead
           eyebrow="Vs prior 30 days"
-          title="What changed."
+          title="what changed"
           meta="month over month"
         />
         <div className="mt-6">
@@ -227,7 +227,7 @@ function SectionHead({
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           {eyebrow}
         </div>
-        <h2 className="mt-2 font-display text-[28px] leading-[1.05] tracking-tight sm:text-[36px]">
+        <h2 className="h-section mt-2 lowercase">
           {title}
         </h2>
       </div>

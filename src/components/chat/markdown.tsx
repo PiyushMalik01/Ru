@@ -67,7 +67,7 @@ export function Markdown({ children }: { children: string }) {
           if (isInline) {
             return (
               <code
-                className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.92em] text-foreground"
+                className="rounded bg-secondary px-1 py-0.5 font-code text-[0.92em] text-foreground"
                 {...props}
               >
                 {children}
@@ -75,13 +75,13 @@ export function Markdown({ children }: { children: string }) {
             );
           }
           return (
-            <code className={cn("font-mono text-[13px]", className)} {...props}>
+            <code className={cn("font-code text-[13px]", className)} {...props}>
               {children}
             </code>
           );
         },
         pre: ({ children }) => (
-          <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-card p-4 font-mono text-[13px] leading-relaxed">
+          <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-card p-4 font-code text-[13px] leading-relaxed">
             {children}
           </pre>
         ),

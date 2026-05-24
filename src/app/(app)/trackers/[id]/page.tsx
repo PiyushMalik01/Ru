@@ -56,8 +56,8 @@ export default async function TrackerDetailPage({
               <span className="ml-2">· {stats.streakDays}-day streak</span>
             )}
           </div>
-          <h1 className="mt-3 font-display text-[44px] leading-[1.02] tracking-tight sm:text-[56px]">
-            {tracker.name}
+          <h1 className="h-page mt-3 lowercase">
+            {tracker.name.toLowerCase()}
           </h1>
           {tracker.description && (
             <p className="mt-2 max-w-2xl text-[15px] text-muted-foreground" style={{ lineHeight: 1.6 }}>
@@ -121,8 +121,8 @@ export default async function TrackerDetailPage({
       {/* Entries table */}
       <div className="mt-8">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-[22px] leading-none tracking-tight">
-            Recent entries
+          <h2 className="h-section lowercase">
+            recent entries
           </h2>
           {entries.length > 0 && (
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">

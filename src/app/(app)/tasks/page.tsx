@@ -151,8 +151,8 @@ export default async function TasksPage({
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           tasks · {head.weekday} {head.date}
         </div>
-        <h1 className="mt-4 font-display text-[44px] leading-[0.98] tracking-[-0.02em] sm:text-[56px]">
-          The list.
+        <h1 className="h-page mt-4 lowercase">
+          the list
         </h1>
         <p className="mt-4 max-w-xl text-[14.5px] leading-relaxed text-muted-foreground">
           Everything you&rsquo;ve agreed to do — sorted by when it&rsquo;s due,

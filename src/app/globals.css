@@ -7,14 +7,15 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Type system v2 — Bricolage everywhere except editorial accent (Fraunces).
-     `--font-mono` points at the system monospace stack so the rare code
-     block in chat markdown still renders monospaced without us loading a
-     third typeface. Labels that previously used `font-mono` now resolve to
-     system mono; the v2 sweep migrates them to Bricolage uppercase
-     letterspacing. Until that sweep lands, system mono is a fine fallback. */
+  /* Type system v2 — two faces. Bricolage carries body, UI, AND `font-mono`
+     usages (which are visually "small uppercase letterspaced label" across
+     this codebase, never code). Pointing --font-mono at Bricolage unifies
+     hundreds of existing `font-mono ... uppercase tracking-[*]` labels under
+     one face without touching every file. True code blocks (in chat
+     markdown) override to system monospace at the component level. */
   --font-sans: var(--font-bricolage);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono: var(--font-bricolage);
+  --font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-display: var(--font-fraunces);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -207,6 +208,60 @@
   html {
     @apply font-sans;
   }
+  /* `font-mono` resolves to Bricolage; nudge label aesthetics so existing
+     `font-mono ... uppercase tracking-[...]` patterns read as small
+     uppercase letterspaced labels with tabular numerals (consistent
+     widths for "MAY 20" / "10:31 PM" alignment). */
+  .font-mono {
+    font-feature-settings: "tnum" on, "lnum" on, "ss01" on;
+    font-variation-settings: "wght" 580, "wdth" 100;
+  }
+}
+
+/* Actual code blocks (chat markdown): preserve monospace for the rare
+   embedded code. Apply via .font-code on the rendered <code>/<pre>. */
+.font-code {
+  font-family: var(--font-code);
+  font-feature-settings: "tnum" on;
+}
+
+/* ---------- Heading utilities (v2 type system) ----------
+   Reusable page/section headline classes that use Bricolage with the
+   right wght+wdth+opsz dialed in. Replaces the previous `font-display
+   text-[44px]` patterns sprinkled across app pages — those were Fraunces
+   with the "italic last word + trailing period" AI cliche. Now: chunky
+   Bricolage, no period, optional lowercase. */
+.h-page {
+  font-family: var(--font-sans);
+  font-size: clamp(36px, 5.6vw, 56px);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  font-variation-settings: "wght" 760, "wdth" 94, "opsz" 72;
+  color: var(--foreground);
+}
+.h-page-sm {
+  font-family: var(--font-sans);
+  font-size: clamp(28px, 4.2vw, 40px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-variation-settings: "wght" 720, "wdth" 94, "opsz" 48;
+  color: var(--foreground);
+}
+.h-section {
+  font-family: var(--font-sans);
+  font-size: clamp(22px, 2.8vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-variation-settings: "wght" 680, "wdth" 96, "opsz" 32;
+  color: var(--foreground);
+}
+.h-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted-foreground);
+  font-variation-settings: "wght" 600, "wdth" 100;
 }
 
 body {
