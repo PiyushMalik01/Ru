@@ -170,6 +170,54 @@ describe("EOT confirmer composite gate", () => {
     confirmer.dispose();
   });
 
+  it("regression: a short breath pause (< REQUIRED_SILENCE_MS) does NOT commit", () => {
+    // User report: "I'm in the flow of speaking and it couldn't read properly
+    // whether I have stopped or not." Repro: Flux fires EOT at medium
+    // confidence, the user takes a 250ms breath, silence reading lands at
+    // 250ms — must NOT commit. (Old threshold of 200ms WOULD commit here.)
+    const clock = makeClock();
+    const confirmer = createEOTConfirmer({ now: clock.now, pollMs: 10_000 });
+    const fired = vi.fn();
+    confirmer.onConfirmed(fired);
+
+    confirmer.push({
+      type: "flux_eot",
+      confidence: 0.7,
+      text: "remind me to call my friend",
+    });
+    confirmer.push({ type: "vad_silence_ms", ms: 250 });
+    expect(fired).not.toHaveBeenCalled();
+
+    // User keeps talking — vad_speech should clear pending entirely on the
+    // next vad_speech tick, but for this test we just confirm the breath
+    // alone didn't commit.
+
+    confirmer.dispose();
+  });
+
+  it("regression: 0.9 Flux confidence (between old and new fast-path) waits for VAD", () => {
+    // 0.9 used to fast-path (old threshold 0.85). Now it shouldn't — must
+    // wait for either composite silence or fallback timeout.
+    const clock = makeClock();
+    const confirmer = createEOTConfirmer({ now: clock.now, pollMs: 10_000 });
+    const fired = vi.fn();
+    confirmer.onConfirmed(fired);
+
+    confirmer.push({
+      type: "flux_eot",
+      confidence: 0.9,
+      text: "ok so today i want to",
+    });
+    expect(fired).not.toHaveBeenCalled();
+
+    // Composite still works at the new silence threshold.
+    confirmer.push({ type: "vad_silence_ms", ms: REQUIRED_SILENCE_MS });
+    expect(fired).toHaveBeenCalledTimes(1);
+    expect((fired.mock.calls[0][0] as ConfirmedTurn).reason).toBe("composite");
+
+    confirmer.dispose();
+  });
+
   it("reset clears all pending state", () => {
     const clock = makeClock();
     const confirmer = createEOTConfirmer({ now: clock.now, pollMs: 10_000 });

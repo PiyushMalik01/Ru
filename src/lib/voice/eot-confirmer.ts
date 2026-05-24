@@ -74,11 +74,20 @@ export interface EOTConfirmer {
   dispose(): void;
 }
 
-export const HIGH_CONFIDENCE_FAST_PATH = 0.85;
+// Tuning rationale (post-user-report): the confirmer was firing on natural
+// mid-sentence pauses. 200ms of silence is shorter than a breath; 0.85 fast
+// path commits on grammatically-complete-sounding fragments before the user
+// has actually finished. New values give human pauses room to land:
+//   • 700ms silence ≈ end-of-thought, not end-of-breath.
+//   • 0.95 fast path ≈ "Flux is unmistakably sure" only.
+//   • 2500ms fallback ≈ generous safety net when local VAD can't agree
+//     (background noise, low mic gain) — was clipping at 1.5s before the
+//     new silence threshold could be met.
+export const HIGH_CONFIDENCE_FAST_PATH = 0.95;
 export const MIN_CONFIDENCE = 0.55;
-export const REQUIRED_SILENCE_MS = 200;
+export const REQUIRED_SILENCE_MS = 700;
 export const TURN_RESUMED_LOCKOUT_MS = 500;
-export const FLUX_TRUST_FALLBACK_MS = 1500;
+export const FLUX_TRUST_FALLBACK_MS = 2500;
 
 interface Pending {
   confidence: number;
