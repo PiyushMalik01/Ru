@@ -135,3 +135,35 @@ export async function snoozeReminderInline(
   if (error) return { ok: false, error: error.message };
   return { ok: true, state: { remind_at: nextIso } };
 }
+
+// ============ ACTIVITIES ============
+
+export async function deleteActivityInline(
+  activityId: string,
+): Promise<ActionResult<{ deleted: true }>> {
+  const auth = await authedClient();
+  if (!auth) return { ok: false, error: "unauthorized" };
+  const { error } = await auth.supabase
+    .from("activity_log")
+    .delete()
+    .eq("id", activityId)
+    .eq("user_id", auth.userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, state: { deleted: true } };
+}
+
+// ============ TRACKER ENTRIES ============
+
+export async function deleteTrackerEntryInline(
+  entryId: string,
+): Promise<ActionResult<{ deleted: true }>> {
+  const auth = await authedClient();
+  if (!auth) return { ok: false, error: "unauthorized" };
+  const { error } = await auth.supabase
+    .from("tracker_entries")
+    .delete()
+    .eq("id", entryId)
+    .eq("user_id", auth.userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, state: { deleted: true } };
+}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { CardActions, CardLabel } from "./task-card";
 
 export type InsightKind =
   | "routine_streak"
@@ -37,46 +37,40 @@ function labelFor(kind: InsightKind): string {
 
 // Full teal tile, dark type. Big metric is the hero — Fraunces.
 export function InsightCard({ data }: { data: InsightCardData }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <button
-      type="button"
-      onClick={() => setOpen((v) => !v)}
-      className={cn(
-        "block w-full overflow-hidden rounded-2xl text-left transition-transform",
-        "hover:-translate-y-0.5"
-      )}
+    <div
+      className="block w-full overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5"
       style={{
         background: "var(--entity-insight)",
         color: "var(--entity-insight-fg)",
       }}
     >
-      <div className="px-5 py-4">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
-            insight · {labelFor(data.kind)}
-          </span>
-        </div>
+      <div className="px-5 pt-4">
+        <CardLabel>insight · {labelFor(data.kind)}</CardLabel>
+      </div>
+      <div className="px-5 pb-3 pt-3">
         <InsightBody data={data} />
       </div>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
+      <CardActions>
+        <Link
+          href="/insights"
+          className="inline-flex items-center gap-1.5 rounded-full bg-black/85 px-3 py-1.5 text-[11.5px] text-white transition-colors hover:bg-black"
+          style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+        >
+          open insights
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2.25} />
+        </Link>
+        {data.period && (
+          <span
+            className="ml-auto text-[10.5px] uppercase tracking-[0.16em] opacity-70"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
           >
-            <div className="border-t border-black/15 px-5 py-3 font-mono text-[11px] uppercase tracking-wide opacity-80">
-              {data.period ?? "—"}
-            </div>
-          </motion.div>
+            {data.period}
+          </span>
         )}
-      </AnimatePresence>
-    </button>
+      </CardActions>
+    </div>
   );
 }
 
@@ -86,14 +80,23 @@ function InsightBody({ data }: { data: InsightCardData }) {
     return (
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">
-          <div className="font-display text-[60px] leading-[0.85] tracking-tight tabular-nums">
+          <div
+            className="font-display text-[60px] leading-[0.85] tracking-tight tabular-nums"
+            style={{ fontVariationSettings: "'wght' 620, 'opsz' 144" }}
+          >
             {streak}
           </div>
-          <div className="mt-2 truncate text-[14.5px] font-medium leading-tight">
+          <div
+            className="mt-2 truncate text-[14.5px] leading-tight"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+          >
             {data.routine_title ?? data.title ?? "current streak"}
           </div>
         </div>
-        <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] opacity-75">
+        <div
+          className="shrink-0 text-[10px] uppercase tracking-[0.16em] opacity-75"
+          style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+        >
           {streak === 1 ? "day" : "days"}
         </div>
       </div>
@@ -108,17 +111,27 @@ function InsightBody({ data }: { data: InsightCardData }) {
     return (
       <div>
         <div className="flex items-baseline justify-between gap-4">
-          <div className="font-display text-[60px] leading-[0.85] tracking-tight tabular-nums">
+          <div
+            className="font-display text-[60px] leading-[0.85] tracking-tight tabular-nums"
+            style={{ fontVariationSettings: "'wght' 620, 'opsz' 144" }}
+          >
             {pct}
             <span className="ml-1 text-[22px] opacity-65">%</span>
           </div>
-          <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] opacity-75">
+          <div
+            className="shrink-0 text-[10px] uppercase tracking-[0.16em] opacity-75"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+          >
             {data.period ?? "this week"}
           </div>
         </div>
         <div className="mt-3 truncate text-[13px] opacity-80">{label}</div>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/15">
-          <div className="h-full bg-black/70 transition-all" style={{ width: `${pct}%` }} aria-hidden />
+          <div
+            className="h-full bg-black/70 transition-all"
+            style={{ width: `${pct}%` }}
+            aria-hidden
+          />
         </div>
       </div>
     );
@@ -128,14 +141,23 @@ function InsightBody({ data }: { data: InsightCardData }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <div className="min-w-0">
-        <div className="font-display text-[56px] leading-[0.85] tracking-tight tabular-nums">
+        <div
+          className="font-display text-[56px] leading-[0.85] tracking-tight tabular-nums"
+          style={{ fontVariationSettings: "'wght' 620, 'opsz' 144" }}
+        >
           {count}
         </div>
-        <div className="mt-2 truncate text-[14.5px] font-medium leading-tight">
+        <div
+          className="mt-2 truncate text-[14.5px] leading-tight"
+          style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
+        >
           {data.category ? `${data.category}` : data.title ?? "activities"}
         </div>
       </div>
-      <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] opacity-75">
+      <div
+        className="shrink-0 text-[10px] uppercase tracking-[0.16em] opacity-75"
+        style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+      >
         {data.period ?? "this week"}
       </div>
     </div>

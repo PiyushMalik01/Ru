@@ -62,6 +62,7 @@ export async function logTrackerEntry(
     cardKind: "tracker",
     card: {
       kind: "entry",
+      entry_id: data.id,
       tracker_id: tracker.id,
       tracker_name: tracker.name,
       values,
