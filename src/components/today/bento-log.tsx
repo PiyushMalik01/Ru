@@ -39,7 +39,13 @@ export function BentoLog({ items, nowMs, className }: Props) {
           </p>
         ) : (
           <div className="mt-auto">
-            <div className="font-display text-[26px] leading-[1.1] sm:text-[30px]">
+            <div
+              className="text-[26px] leading-[1.1] sm:text-[30px]"
+              style={{
+                fontVariationSettings: "'wght' 680, 'wdth' 96, 'opsz' 30",
+                letterSpacing: "-0.025em",
+              }}
+            >
               {hero.activity}
             </div>
             <div className="mt-2 flex items-center gap-3 font-mono text-[10.5px] uppercase tracking-[0.16em] opacity-80">

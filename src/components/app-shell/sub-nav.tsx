@@ -18,17 +18,17 @@ interface SubLink {
 
 const SUB_LINKS: SubLink[] = [
   {
-    label: "Sheet",
+    label: "sheet",
     href: "/sheet",
     match: (p) => p === "/sheet" || p.startsWith("/sheet/"),
   },
   {
-    label: "Tasks",
+    label: "tasks",
     href: "/tasks",
     match: (p) => p === "/tasks" || p.startsWith("/tasks/"),
   },
   {
-    label: "Routines",
+    label: "routines",
     href: "/routines",
     match: (p) =>
       p === "/routines" ||
@@ -36,12 +36,12 @@ const SUB_LINKS: SubLink[] = [
       p.startsWith("/trackers/"),
   },
   {
-    label: "Plans",
+    label: "plans",
     href: "/plans",
     match: (p) => p === "/plans" || p.startsWith("/plans/"),
   },
   {
-    label: "Insights",
+    label: "insights",
     href: "/insights",
     match: (p) => p === "/insights" || p.startsWith("/insights/"),
   },

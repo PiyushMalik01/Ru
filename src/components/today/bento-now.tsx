@@ -46,8 +46,14 @@ export function BentoNow({ items, nowMs, className }: Props) {
             <Sticker tilt={2} dark>Free</Sticker>
           </div>
           <div className="mt-auto">
-            <div className="font-display text-[52px] leading-[0.95] sm:text-[64px]">
-              Nothing on the clock.
+            <div
+              className="lowercase text-[52px] leading-[0.95] sm:text-[64px]"
+              style={{
+                fontVariationSettings: "'wght' 760, 'wdth' 94, 'opsz' 64",
+                letterSpacing: "-0.035em",
+              }}
+            >
+              nothing on the clock
             </div>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed opacity-70">
               The next hour is yours. Take a breath — or open the sheet and pick something up.
@@ -81,8 +87,14 @@ export function BentoNow({ items, nowMs, className }: Props) {
           )}
         </div>
 
-        <h2 className="mt-auto font-display text-[44px] leading-[0.98] sm:text-[60px]">
-          {headline.title}
+        <h2
+          className="mt-auto lowercase text-[44px] leading-[0.98] sm:text-[60px]"
+          style={{
+            fontVariationSettings: "'wght' 760, 'wdth' 94, 'opsz' 60",
+            letterSpacing: "-0.035em",
+          }}
+        >
+          {headline.title.toLowerCase()}
         </h2>
 
         <div className="mt-6 flex items-center justify-between">

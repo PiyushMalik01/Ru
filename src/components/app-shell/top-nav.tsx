@@ -12,9 +12,9 @@ import { MemoryFactChip } from "./memory-fact-chip";
 //   Sheet  → cobalt  (the structured database — same hue as the task entity)
 //   Chat   → teal    (insight, conversation — borrowed from --entity-insight)
 const tabs: { name: string; href: string; tone: string }[] = [
-  { name: "Today", href: "/today", tone: "var(--entity-plan)" },
-  { name: "Sheet", href: "/sheet", tone: "var(--entity-task)" },
-  { name: "Chat",  href: "/chat",  tone: "var(--entity-insight)" },
+  { name: "today", href: "/today", tone: "var(--entity-plan)" },
+  { name: "sheet", href: "/sheet", tone: "var(--entity-task)" },
+  { name: "chat",  href: "/chat",  tone: "var(--entity-insight)" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -119,7 +119,7 @@ export function TopNav() {
             )}
             style={{ fontWeight: 500 }}
           >
-            Settings
+            settings
           </Link>
         </div>
       </div>

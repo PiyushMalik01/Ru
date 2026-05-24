@@ -182,8 +182,8 @@ export function AnticipationSection() {
     <section className="mt-12">
       {/* Header — Fraunces serif, small mono counter on the right */}
       <div className="mb-5 flex items-baseline justify-between">
-        <h2 className="font-display text-[28px] leading-none text-foreground sm:text-[32px]">
-          Ru noticed
+        <h2 className="h-section lowercase">
+          ru noticed
         </h2>
         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           {suggestions.length.toString().padStart(2, "0")} pending

@@ -36,7 +36,13 @@ export function BentoPlan({
           </Sticker>
         </div>
 
-        <h3 className="mt-4 line-clamp-2 font-display text-[28px] leading-[1.05] sm:text-[34px]">
+        <h3
+          className="mt-4 line-clamp-2 text-[28px] leading-[1.05] sm:text-[34px]"
+          style={{
+            fontVariationSettings: "'wght' 680, 'wdth' 96, 'opsz' 32",
+            letterSpacing: "-0.025em",
+          }}
+        >
           {title}
         </h3>
 
@@ -69,8 +75,8 @@ export function BentoPlanEmpty({ className }: { className?: string }) {
       <div className="flex h-full flex-col justify-between">
         <Sticker tilt={-2}>Active plan</Sticker>
         <div>
-          <h3 className="font-display text-[24px] leading-[1.05] sm:text-[28px]">
-            Nothing in flight.
+          <h3 className="h-section lowercase">
+            nothing in flight
           </h3>
           <p className="mt-2 text-[13px] leading-relaxed opacity-75">
             Plans hold items that belong to a bigger arc. Tell Ru what you&rsquo;re building.
