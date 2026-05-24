@@ -3,10 +3,14 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { scrubAssistantText } from "@/lib/chat-text-scrub";
 
 // Notion-style markdown render scoped to assistant messages.
 // Headings, lists, bold, code, tables, links. No prose plugin so we control type tight.
 export function Markdown({ children }: { children: string }) {
+  // Defense-in-depth: strip any tool-call / JSON leakage that slipped past
+  // the system prompt's output-discipline rules. See lib/chat-text-scrub.ts.
+  const cleaned = scrubAssistantText(children);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -97,7 +101,7 @@ export function Markdown({ children }: { children: string }) {
         ),
       }}
     >
-      {children}
+      {cleaned}
     </ReactMarkdown>
   );
 }
