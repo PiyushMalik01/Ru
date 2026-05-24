@@ -7,8 +7,14 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Type system v2 — Bricolage everywhere except editorial accent (Fraunces).
+     `--font-mono` points at the system monospace stack so the rare code
+     block in chat markdown still renders monospaced without us loading a
+     third typeface. Labels that previously used `font-mono` now resolve to
+     system mono; the v2 sweep migrates them to Bricolage uppercase
+     letterspacing. Until that sweep lands, system mono is a fine fallback. */
+  --font-sans: var(--font-bricolage);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-display: var(--font-fraunces);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -209,24 +215,45 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Base body type bumped one tick — feels more confident on big screens
-     without crossing into the boomer-blog "big text" zone. Coupled with the
-     heading scale below, the overall page reads more present and editorial. */
+  /* Bricolage variable axes: wght 440 reads as a confident "book" weight,
+     wdth 96 gives a slight condense (compared to default 100) that pairs
+     well with the chunky display axis without feeling generic. */
   font-size: 15.5px;
   line-height: 1.55;
-  font-weight: 450;
+  font-weight: 440;
+  font-variation-settings: "wght" 440, "wdth" 96;
+  letter-spacing: -0.005em;
 }
 
-/* Headings get more weight + tighter tracking. Display sizes use Fraunces
-   via .font-display; the Geist headings here are for in-flow content. */
+/* Headings — chunky lowercase Bricolage. The display axis (opsz) is
+   tuned per-size so larger headings get the wider stroke/contrast Bricolage
+   meant for poster sizes; smaller in-flow heads get the text-cut. */
 h1, h2, h3, h4, h5, h6 {
-  letter-spacing: -0.028em;
-  font-weight: 650;
   color: var(--foreground);
+  font-family: var(--font-sans);
+  letter-spacing: -0.03em;
 }
-h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.05; }
-h2 { font-size: clamp(1.5rem, 2.6vw, 1.9rem); line-height: 1.1; }
-h3 { font-size: 1.25rem; line-height: 1.2; }
+h1 {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1.02;
+  font-weight: 720;
+  font-variation-settings: "wght" 720, "wdth" 94, "opsz" 48;
+  letter-spacing: -0.035em;
+}
+h2 {
+  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+  line-height: 1.1;
+  font-weight: 680;
+  font-variation-settings: "wght" 680, "wdth" 96, "opsz" 32;
+  letter-spacing: -0.025em;
+}
+h3 {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  font-weight: 620;
+  font-variation-settings: "wght" 620, "wdth" 96, "opsz" 22;
+  letter-spacing: -0.015em;
+}
 
 /* Fraunces — characterful display serif. Used ONLY for big numbers, hero
    standfirst, and section openers. The dial-in: SOFT axis up for warmth,

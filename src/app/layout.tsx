@@ -1,15 +1,27 @@
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
-import { Fraunces } from "next/font/google";
+import { Bricolage_Grotesque, Fraunces } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { PRE_HYDRATION_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
-// Fraunces — the editorial display serif. Used ONLY for hero numbers
-// (streaks / progress / counts), the standfirst, and section openers.
-// Variable font, so we load axes for SOFT (warmth), WONK (personality at
-// display sizes), and opsz (optical-size compensation).
+// Type system v2: TWO faces, max. Bricolage Grotesque does the work; Fraunces
+// is the editorial accent.
+//
+// Bricolage Grotesque — variable workhorse. Carries body, UI, labels,
+// navigation, and the chunky lowercase display headlines. Variable axes
+// give us wght 200-800, wdth 75-100, opsz 12-96 — enough range to handle
+// 11px labels and 96px posters from one font file.
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-bricolage",
+  display: "swap",
+  axes: ["opsz", "wdth"],
+});
+
+// Fraunces — editorial accent serif. Reserved for the brand mark, big
+// numeric stats inside cards, and the rare italic editorial aside. Not
+// for every heading. The "italic last word + trailing period" formula
+// is retired.
 const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-fraunces",
@@ -37,7 +49,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: PRE_HYDRATION_SCRIPT }} />
       </head>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} ${fraunces.variable} font-sans antialiased`}
+        className={`${bricolage.variable} ${fraunces.variable} font-sans antialiased`}
       >
         <Providers>{children}</Providers>
       </body>
