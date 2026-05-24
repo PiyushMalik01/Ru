@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Mic, Square, ArrowUp, Headphones } from "lucide-react";
+import { Mic, Square, ArrowUp } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { VoiceConversation } from "@/components/chat/voice-conversation";
 import { usePushToTalk } from "@/lib/hooks/use-push-to-talk";
+import { VoiceToggle } from "./voice-toggle";
+import { MiniOrb } from "./mini-orb";
 
 type PillState = "idle" | "typing" | "listening";
 
@@ -193,133 +195,119 @@ export function FloatingPill() {
           orbOpen && "pointer-events-none opacity-0",
         )}
       >
-        <div className="relative w-full max-w-xl">
+        {voiceMode ? (
+          // Collapsed pill — voice mode. The orb is the affordance; tap it to
+          // open the full conversation. Toggle stays visible so the user can
+          // jump back to text mode.
           <div
             className={cn(
-              // The shell. Chunky pill (full-radius), focus-aware border
-              // weight, and a soft outer glow so it reads as the primary
-              // input surface — not a control bar.
-              "group/pill flex items-center gap-2 rounded-full px-4 py-2 backdrop-blur-xl transition-all",
+              "flex items-center gap-3 rounded-full px-3 py-2 backdrop-blur-xl",
               "bg-[color:var(--card)]/90 shadow-[0_8px_28px_-12px_rgba(0,0,0,0.18)]",
               "dark:shadow-[0_8px_28px_-12px_rgba(0,0,0,0.55)]",
-              "border-2",
-              state === "listening"
-                ? "border-[var(--entity-routine)]/70"
-                : state === "typing"
-                  ? "border-[var(--hairline-strong)] focus-within:border-foreground/30"
-                  : "border-[var(--hairline)] focus-within:border-foreground/30",
+              "border-2 border-[var(--hairline)]",
             )}
           >
-            {/* Status dot — single source of truth for what the pill is doing.
-                Color carries the meaning so the icon set on the right can stay
-                visually quiet. */}
-            <StatusDot state={dotState} voiceMode={voiceMode} />
-
-            {/* Input surface — text field, listening waveform, or voice-mode
-                breathing placeholder. The three states are mutually exclusive
-                and animate via opacity so the swap is calm. */}
-            <div className="relative flex-1">
-              {state === "listening" ? (
-                <WaveformBars />
-              ) : voiceMode ? (
-                <button
-                  type="button"
-                  onClick={handleMicClick}
-                  className="ru-voice-placeholder flex w-full items-center py-2 text-left text-[14.5px] text-muted-foreground"
-                >
-                  Tap to speak
-                </button>
-              ) : (
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Talk to Ru…"
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    setState(e.target.value ? "typing" : "idle");
-                  }}
-                  onKeyDown={handleKeyDown}
-                  className="w-full bg-transparent py-2 text-[14.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
-                />
-              )}
-            </div>
-
-            {/* Right control cluster — visual hierarchy is Send > Mic > Voice
-                toggle. Send/Stop is the only filled-foreground button. Mic
-                gets a subtle background only when listening. Voice-only is a
-                small icon toggle (Headphones), tertiary. */}
-            <button
-              type="button"
-              onClick={toggleVoiceOnly}
-              aria-pressed={voiceMode}
-              aria-label={voiceMode ? "Disable voice-only mode" : "Enable voice-only mode"}
-              title={voiceMode ? "Voice only · on" : "Voice only"}
-              className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all",
-                voiceMode
-                  ? "bg-foreground text-background shadow-[0_0_0_4px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_4px_rgba(255,255,255,0.06)]"
-                  : "text-muted-foreground hover:bg-[var(--secondary)] hover:text-foreground",
-              )}
-            >
-              <Headphones className="h-[15px] w-[15px]" strokeWidth={1.75} />
-            </button>
-
+            <VoiceToggle on={voiceMode} onChange={() => toggleVoiceOnly()} />
             <button
               type="button"
               onClick={handleMicClick}
-              aria-label={state === "listening" ? "Stop listening" : "Start mic"}
-              title={voiceMode ? "Start conversation" : "Hold space, or tap to speak"}
+              aria-label="Open voice conversation"
+              title="Tap to start talking"
+              className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-[#0a0a0e] shadow-[0_6px_22px_-6px_rgba(0,0,0,0.45)] transition-transform hover:scale-[1.04] active:scale-95"
+            >
+              <MiniOrb size={56} />
+            </button>
+          </div>
+        ) : (
+          <div className="relative w-full max-w-xl">
+            <div
               className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all",
+                // Same chunky pill shell as before — only the headphones
+                // toggle was replaced with the new VoiceToggle switch.
+                "group/pill flex items-center gap-2 rounded-full px-4 py-2 backdrop-blur-xl transition-all",
+                "bg-[color:var(--card)]/90 shadow-[0_8px_28px_-12px_rgba(0,0,0,0.18)]",
+                "dark:shadow-[0_8px_28px_-12px_rgba(0,0,0,0.55)]",
+                "border-2",
                 state === "listening"
-                  ? "bg-[var(--entity-routine)] text-[var(--entity-routine-fg)]"
-                  : "text-foreground hover:bg-[var(--secondary)]",
+                  ? "border-[var(--entity-routine)]/70"
+                  : state === "typing"
+                    ? "border-[var(--hairline-strong)] focus-within:border-foreground/30"
+                    : "border-[var(--hairline)] focus-within:border-foreground/30",
               )}
             >
-              {state === "listening" ? (
-                <Square className="h-3 w-3" fill="currentColor" />
-              ) : (
-                <Mic className="h-[15px] w-[15px]" strokeWidth={1.75} />
-              )}
-            </button>
+              <StatusDot state={dotState} voiceMode={voiceMode} />
 
-            {/* Send/Stop — primary action. Only visible when there's content
-                to send or a stream to stop. Filled foreground so it's
-                unambiguously the "go" button. */}
-            {(showSend || showStop) && (
+              <div className="relative flex-1">
+                {state === "listening" ? (
+                  <WaveformBars />
+                ) : (
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="Talk to Ru…"
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      setState(e.target.value ? "typing" : "idle");
+                    }}
+                    onKeyDown={handleKeyDown}
+                    className="w-full bg-transparent py-2 text-[14.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                  />
+                )}
+              </div>
+
+              <VoiceToggle on={voiceMode} onChange={() => toggleVoiceOnly()} />
+
               <button
                 type="button"
-                onClick={handleSubmit}
-                aria-label={showStop ? "Stop" : "Send"}
-                title={showStop ? "Stop" : "Send (Enter)"}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background shadow-[0_2px_8px_-2px_rgba(0,0,0,0.25)] transition-transform hover:scale-[1.04] active:scale-95"
+                onClick={handleMicClick}
+                aria-label={state === "listening" ? "Stop listening" : "Start mic"}
+                title="Hold space, or tap to speak"
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all",
+                  state === "listening"
+                    ? "bg-[var(--entity-routine)] text-[var(--entity-routine-fg)]"
+                    : "text-foreground hover:bg-[var(--secondary)]",
+                )}
               >
-                {showStop ? (
+                {state === "listening" ? (
                   <Square className="h-3 w-3" fill="currentColor" />
                 ) : (
-                  <ArrowUp className="h-[15px] w-[15px]" strokeWidth={2.25} />
+                  <Mic className="h-[15px] w-[15px]" strokeWidth={1.75} />
                 )}
               </button>
+
+              {(showSend || showStop) && (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  aria-label={showStop ? "Stop" : "Send"}
+                  title={showStop ? "Stop" : "Send (Enter)"}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background shadow-[0_2px_8px_-2px_rgba(0,0,0,0.25)] transition-transform hover:scale-[1.04] active:scale-95"
+                >
+                  {showStop ? (
+                    <Square className="h-3 w-3" fill="currentColor" />
+                  ) : (
+                    <ArrowUp className="h-[15px] w-[15px]" strokeWidth={2.25} />
+                  )}
+                </button>
+              )}
+            </div>
+
+            {isStreaming && (
+              <div
+                aria-hidden
+                className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[var(--hairline-strong)]"
+              />
+            )}
+
+            {state === "idle" && !isStreaming && (
+              <div className="pointer-events-none absolute inset-x-0 -top-6 flex justify-center font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/50 opacity-0 transition-opacity duration-300 group-hover/pill:opacity-100">
+                hold <kbd className="mx-1 rounded border border-[var(--hairline)] px-1">space</kbd> to talk
+              </div>
             )}
           </div>
-
-          {/* Subtle 1px opacity-pulse line under the pill while streaming */}
-          {isStreaming && (
-            <div
-              aria-hidden
-              className="ru-pill-pulse pointer-events-none absolute inset-x-6 -bottom-px h-px bg-[var(--hairline-strong)]"
-            />
-          )}
-
-          {/* Inline keyboard hint — appears only when idle + not voice-mode.
-              Tells the user about hold-space-to-talk without crowding. */}
-          {!voiceMode && state === "idle" && !isStreaming && (
-            <div className="pointer-events-none absolute inset-x-0 -top-6 flex justify-center font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/50 opacity-0 transition-opacity duration-300 group-hover/pill:opacity-100">
-              hold <kbd className="mx-1 rounded border border-[var(--hairline)] px-1">space</kbd> to talk
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {orbOpen && (

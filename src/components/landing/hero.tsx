@@ -483,8 +483,7 @@ export function Hero() {
           </a>
           <a
             href="#how"
-            className="rounded-full border-2 px-6 py-3.5 text-sm font-semibold transition-colors hover:bg-[#1a5632] hover:text-[#eef1ea] md:px-8 md:py-4 md:text-base"
-            style={{ borderColor: "#1a5632", color: "#1a5632" }}
+            className="rounded-full border-2 border-[#1a5632] px-6 py-3.5 text-sm font-semibold text-[#1a5632] transition-colors hover:bg-[#1a5632] hover:text-[#eef1ea] md:px-8 md:py-4 md:text-base"
           >
             See how it works
           </a>
