@@ -11,7 +11,11 @@ interface Props {
   chatTitle?: string | null;
 }
 
-export function ChatView({ initialMessages = [], chatId = null }: Props) {
+export function ChatView({
+  initialMessages = [],
+  chatId = null,
+  chatTitle = null,
+}: Props) {
   const messages = useChatStore((s) => s.messages);
   const status = useChatStore((s) => s.status);
   const thinking = useChatStore((s) => s.thinking);
@@ -20,8 +24,6 @@ export function ChatView({ initialMessages = [], chatId = null }: Props) {
   const storeChatId = useChatStore((s) => s.chatId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Re-hydrate whenever the chat id changes (navigation between threads in
-  // the sidebar). The hydrate action handles the no-op when nothing changed.
   useEffect(() => {
     if (chatId !== storeChatId) {
       hydrate(initialMessages, chatId);
@@ -43,9 +45,31 @@ export function ChatView({ initialMessages = [], chatId = null }: Props) {
 
   return (
     <div className="w-full">
+      {chatTitle ? (
+        <div
+          className="sticky top-0 z-10 -mt-2 mb-3 flex items-baseline justify-between border-b border-[var(--hairline)] bg-background/85 px-1 py-3 backdrop-blur-sm"
+        >
+          <div
+            className="text-[18px] lowercase text-foreground"
+            style={{
+              fontVariationSettings: "'wght' 700, 'wdth' 94, 'opsz' 22",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {chatTitle}
+          </div>
+          <div
+            className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+            style={{ fontVariationSettings: "'wght' 540, 'wdth' 100" }}
+          >
+            {messages.length} {messages.length === 1 ? "message" : "messages"}
+          </div>
+        </div>
+      ) : null}
+
       <MessageList messages={messages} />
       {showLoader && (
-        <div className="mt-4">
+        <div className="mt-4 pl-11">
           <ThinkingIndicator phase={thinking} label={thinkingLabel} />
         </div>
       )}
@@ -54,46 +78,82 @@ export function ChatView({ initialMessages = [], chatId = null }: Props) {
   );
 }
 
+const CHIP_PROMPTS = [
+  { label: "+ log a quick activity", text: "Log a quick activity for me." },
+  { label: "+ remind me tomorrow", text: "Remind me about something tomorrow." },
+  { label: "what did I do this week?", text: "What did I do this week?" },
+  { label: "+ draft my Monday plan", text: "Draft my plan for Monday." },
+  { label: "+ start a new routine", text: "Help me start a new routine." },
+  { label: "what's next?", text: "What's next on my plate?" },
+] as const;
+
 function EmptyState() {
+  const sendText = useChatStore((s) => s.sendText);
   const hour = new Date().getHours();
   const greeting =
     hour < 5
-      ? "Still up?"
+      ? "still up"
       : hour < 12
-        ? "Morning."
+        ? "morning"
         : hour < 17
-          ? "Afternoon."
+          ? "afternoon"
           : hour < 21
-            ? "Evening."
-            : "Late tonight?";
+            ? "evening"
+            : "late tonight";
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-start justify-center pl-1">
-      <div className="max-w-[52ch]">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          ru · ready
+    <div className="flex min-h-[64vh] flex-col items-start justify-center px-1">
+      <div className="w-full max-w-[64ch]">
+        <div
+          className="inline-flex items-center gap-2 rounded-full bg-[var(--entity-routine)] px-3 py-1.5 text-[10.5px] uppercase tracking-[0.16em] text-[var(--entity-routine-fg)]"
+          style={{ fontVariationSettings: "'wght' 620, 'wdth' 100" }}
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inset-0 animate-ping rounded-full bg-[var(--entity-routine-fg)] opacity-50" />
+            <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--entity-routine-fg)]" />
+          </span>
+          ru is listening
         </div>
-        <h1 className="mt-5 font-display text-[52px] leading-[1.02] tracking-tight text-foreground">
+
+        <h1
+          className="mt-7 lowercase text-foreground"
+          style={{
+            fontSize: "clamp(56px, 9vw, 96px)",
+            lineHeight: 0.94,
+            letterSpacing: "-0.045em",
+            fontVariationSettings: "'wght' 780, 'wdth' 92, 'opsz' 96",
+          }}
+        >
           {greeting}
         </h1>
+
         <p
-          className="mt-5 text-[15px] text-muted-foreground"
-          style={{ lineHeight: 1.65 }}
+          className="mt-6 max-w-[54ch] text-[16.5px] text-muted-foreground"
+          style={{
+            lineHeight: 1.55,
+            fontVariationSettings: "'wght' 440, 'wdth' 96",
+          }}
         >
-          Tell me what&rsquo;s on your mind. A meeting you keep dodging, the run you
-          want to start, a thought you don&rsquo;t want to lose. I&rsquo;ll keep
-          track of the rest.
+          Tell me what&rsquo;s on your mind. A meeting you keep dodging, the run
+          you want to start, a thought you don&rsquo;t want to lose. I&rsquo;ll
+          keep track of the rest.
         </p>
 
-        <div className="mt-10 flex flex-col gap-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="h-px w-6 bg-[var(--hairline-strong)]" aria-hidden />
-            <span>type below, or hold the mic</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="h-px w-6 bg-[var(--hairline-strong)]" aria-hidden />
-            <span>tap voice-only to go hands-free</span>
-          </div>
+        <div className="mt-8 flex flex-wrap gap-2">
+          {CHIP_PROMPTS.map((c, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => void sendText(c.text)}
+              className="rounded-full border-[1.5px] border-foreground bg-card px-4 py-2 text-[14px] text-foreground transition-all hover:-translate-y-px hover:bg-foreground hover:text-background"
+              style={{
+                fontVariationSettings: "'wght' 540, 'wdth' 96",
+                letterSpacing: "-0.005em",
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

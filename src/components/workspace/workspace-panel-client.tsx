@@ -178,7 +178,7 @@ export function WorkspacePanelClient({
       {/* Desktop panel */}
       <aside
         aria-label="Workspace panel"
-        className="relative hidden h-full w-full max-w-[44%] shrink-0 flex-col overflow-y-auto border-l border-border bg-background lg:flex lg:w-[40%]"
+        className="relative hidden h-full w-full max-w-[36%] shrink-0 flex-col overflow-y-auto border-l border-[var(--hairline)] bg-background lg:flex lg:w-[32%]"
       >
         <div className="flex-1 px-6 py-5">
           <PanelBody

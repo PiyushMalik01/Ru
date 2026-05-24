@@ -72,6 +72,7 @@ export default async function ChatPage() {
       role: m.role,
       content: m.content,
       cards: extractCardsFromMetadata(m.metadata),
+      created_at: m.created_at,
     }))
     // Keep messages that have prose OR cards — silent tool-only assistant
     // turns are legitimate and should still appear in history.

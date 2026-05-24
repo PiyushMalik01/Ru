@@ -7,12 +7,30 @@ import { Card } from "./cards";
 import { StreamingCaret } from "./streaming-bubble";
 import { Markdown } from "./markdown";
 import { MessageActions } from "./message-actions";
+import { MiniOrb } from "@/components/app-shell/mini-orb";
 import { cn } from "@/lib/utils";
 
 interface Props {
   message: ChatMessage;
   /** True if this is the latest message in the list. */
   isLast?: boolean;
+}
+
+function formatTimestamp(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `yesterday · ${time}`;
+  const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${day} · ${time}`;
 }
 
 export function MessageBubble({ message, isLast = false }: Props) {
@@ -23,7 +41,6 @@ export function MessageBubble({ message, isLast = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
 
-  // Disable affordances during streaming so we don't fight an in-flight turn.
   const busy = status === "streaming";
   const canEdit = message.role === "user" && !busy && !message.id.startsWith("local-");
   const canRegenerate =
@@ -51,9 +68,10 @@ export function MessageBubble({ message, isLast = false }: Props) {
     await editMessage(message.id, trimmed);
   }
 
+  // ===== USER =====
   if (message.role === "user") {
     return (
-      <div className="group/msg flex w-full flex-col items-end">
+      <div className="group/msg flex w-full flex-col items-end gap-1.5">
         {editing ? (
           <div className="w-full max-w-[80%] rounded-2xl border border-foreground/20 bg-card p-3 shadow-sm">
             <textarea
@@ -62,8 +80,10 @@ export function MessageBubble({ message, isLast = false }: Props) {
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") cancelEdit();
-                if ((e.key === "Enter" && (e.metaKey || e.ctrlKey)) ||
-                    (e.key === "Enter" && !e.shiftKey)) {
+                if (
+                  (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ||
+                  (e.key === "Enter" && !e.shiftKey)
+                ) {
                   e.preventDefault();
                   void commitEdit();
                 }
@@ -72,7 +92,10 @@ export function MessageBubble({ message, isLast = false }: Props) {
               className="w-full resize-none bg-transparent text-[14px] leading-snug text-foreground focus:outline-none"
             />
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              <span
+                className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                style={{ fontVariationSettings: "'wght' 500, 'wdth' 100" }}
+              >
                 editing · enter to send · esc to cancel
               </span>
               <div className="flex items-center gap-1">
@@ -97,14 +120,29 @@ export function MessageBubble({ message, isLast = false }: Props) {
             </div>
           </div>
         ) : (
-          <div
-            className={cn(
-              "max-w-[80%] rounded-2xl bg-secondary px-4 py-2.5",
-              "whitespace-pre-wrap text-[14px] leading-snug text-foreground",
-            )}
-          >
-            {message.content}
-          </div>
+          <>
+            <div
+              className={cn(
+                // Ink-on-cream user bubble with the asymmetric corner that
+                // says "this is mine, I just said this" — visually distinct
+                // from the assistant's grounded prose. The 4px corner on the
+                // bottom-right is the "tail" of the speech.
+                "max-w-[78%] whitespace-pre-wrap rounded-[20px_20px_4px_20px] px-4 py-2.5",
+                "bg-foreground text-background",
+                "text-[14.5px] leading-[1.5]",
+                "shadow-[0_6px_18px_-8px_rgba(0,0,0,0.2)]",
+              )}
+              style={{ fontVariationSettings: "'wght' 460, 'wdth' 96" }}
+            >
+              {message.content}
+            </div>
+            <div
+              className="pr-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+              style={{ fontVariationSettings: "'wght' 540, 'wdth' 100" }}
+            >
+              {formatTimestamp(message.created_at)}
+            </div>
+          </>
         )}
         {!editing && (
           <MessageActions
@@ -117,38 +155,62 @@ export function MessageBubble({ message, isLast = false }: Props) {
     );
   }
 
-  // Assistant — no bubble. Long-form reading typography. Markdown renders
-  // inline so plans + outputs look structured rather than a wall of text.
+  // ===== ASSISTANT =====
   const showCaret = message.streaming === true;
-
   return (
-    <div className="group/msg flex w-full flex-col">
-      <div className="w-full max-w-[62ch]">
-        {message.content.length > 0 && (
-          <div
-            className="text-[15px] text-foreground"
-            style={{ lineHeight: 1.65 }}
-          >
-            <Markdown>{message.content}</Markdown>
-            {showCaret && <StreamingCaret />}
-          </div>
-        )}
+    <div className="group/msg flex w-full">
+      <div className="flex w-full gap-3">
+        {/* Orb anchor — the same wave-ring creature that lives in the pill
+            and the voice modal, at 28px. Cohesion with the voice surface,
+            and a visual ground for each Ru reply so two adjacent turns
+            don't blur into each other. */}
+        <div
+          className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a0a0e]"
+          aria-hidden
+        >
+          <MiniOrb size={28} />
+        </div>
 
-        {message.cards.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {message.cards.map((card, i) => (
-              <Card key={i} kind={card.kind} data={card.data} />
-            ))}
-          </div>
-        )}
+        <div className="min-w-0 flex-1">
+          {message.content.length > 0 && (
+            <div
+              className="text-[15px] text-foreground"
+              style={{
+                lineHeight: 1.65,
+                fontVariationSettings: "'wght' 440, 'wdth' 96",
+              }}
+            >
+              <Markdown>{message.content}</Markdown>
+              {showCaret && <StreamingCaret />}
+            </div>
+          )}
+
+          {message.cards.length > 0 && (
+            <div className="mt-3 flex max-w-[540px] flex-col gap-2">
+              {message.cards.map((card, i) => (
+                <Card key={i} kind={card.kind} data={card.data} />
+              ))}
+            </div>
+          )}
+
+          {!message.streaming && (
+            <div
+              className="mt-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+              style={{ fontVariationSettings: "'wght' 540, 'wdth' 100" }}
+            >
+              {formatTimestamp(message.created_at)}
+            </div>
+          )}
+
+          <MessageActions
+            role="assistant"
+            content={message.content}
+            isLast={isLast}
+            streaming={message.streaming}
+            onRegenerate={canRegenerate ? regenerateLast : undefined}
+          />
+        </div>
       </div>
-      <MessageActions
-        role="assistant"
-        content={message.content}
-        isLast={isLast}
-        streaming={message.streaming}
-        onRegenerate={canRegenerate ? regenerateLast : undefined}
-      />
     </div>
   );
 }

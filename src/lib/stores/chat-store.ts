@@ -15,6 +15,9 @@ export interface ChatMessage {
   content: string;
   cards: ChatCard[];
   streaming?: boolean;
+  /** ISO timestamp. Set to now() for newly-created local messages,
+   *  or the DB row's created_at when hydrated from history. */
+  created_at: string;
 }
 
 // Phases the assistant cycles through during a turn — drives the loader UI.
@@ -314,11 +317,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   insertPersistedTurn: (turn) => {
     const existing = get().messages;
+    const now = new Date().toISOString();
     const userMsg: ChatMessage = {
       id: turn.userMessageId,
       role: "user",
       content: turn.userText,
       cards: [],
+      created_at: now,
     };
     const assistantMsg: ChatMessage = {
       id: turn.assistantMessageId,
@@ -326,6 +331,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       content: turn.assistantText,
       cards: [],
       streaming: false,
+      created_at: now,
     };
     set({
       messages: [...existing, userMsg, assistantMsg],
@@ -438,6 +444,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       base = base.slice(0, idx);
     }
 
+    const now = new Date().toISOString();
     const userMsg: ChatMessage | null =
       mode === "send"
         ? {
@@ -445,6 +452,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             role: "user",
             content: trimmed,
             cards: [],
+            created_at: now,
           }
         : null;
     const assistantMsg: ChatMessage = {
@@ -453,6 +461,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       content: "",
       cards: [],
       streaming: true,
+      created_at: now,
     };
     set({
       messages: userMsg ? [...base, userMsg, assistantMsg] : [...base, assistantMsg],

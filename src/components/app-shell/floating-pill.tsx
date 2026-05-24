@@ -187,11 +187,11 @@ export function FloatingPill() {
     <>
       <div
         className={cn(
-          // On the chat page only, the workspace panel takes ~40% on lg+. We
+          // On the chat page only, the workspace panel takes ~32% on lg+. We
           // restrict the pill's right edge to the chat column so it stays
           // centered over the conversation, not the full viewport.
           "fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 transition-opacity",
-          onChat && "lg:right-[40%]",
+          onChat && "lg:right-[32%]",
           orbOpen && "pointer-events-none opacity-0",
         )}
       >

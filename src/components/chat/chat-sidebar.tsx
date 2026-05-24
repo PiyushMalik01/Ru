@@ -111,12 +111,12 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
 
   if (collapsed) {
     return (
-      <aside className="flex h-full w-[56px] shrink-0 flex-col items-center border-r border-border bg-card/40 py-3">
+      <aside className="flex h-full w-[56px] shrink-0 flex-col items-center border-r border-[var(--hairline)] bg-[color:var(--background)] py-3">
         <button
           type="button"
           onClick={() => setCollapsed(false)}
           aria-label="Expand chat sidebar"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--secondary)] hover:text-foreground"
         >
           <PanelLeftOpen className="h-4 w-4" />
         </button>
@@ -125,13 +125,14 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
           onClick={handleNewChat}
           disabled={pending}
           aria-label="New chat"
-          className="mt-3 flex h-9 w-9 items-center justify-center rounded-md bg-foreground text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="mt-3 flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
         </button>
         <div
           aria-hidden
-          className="mt-6 flex-1 [writing-mode:vertical-rl] font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+          className="mt-6 flex-1 [writing-mode:vertical-rl] text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+          style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
         >
           chats · {chats.length}
         </div>
@@ -140,26 +141,28 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
   }
 
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-border bg-card/40">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3">
+    <aside className="flex h-full w-[220px] shrink-0 flex-col border-r border-[var(--hairline)] bg-[color:var(--background)]">
+      {/* Header — chunky dark pill for the primary action. */}
+      <div className="flex items-center gap-1.5 px-3 py-3.5">
         <button
           type="button"
           onClick={handleNewChat}
           disabled={pending}
           className={cn(
-            "flex flex-1 items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-left transition-colors",
-            "hover:bg-elevated disabled:opacity-50"
+            "flex flex-1 items-center justify-center gap-2 rounded-full bg-foreground px-4 py-2.5",
+            "text-background shadow-[0_6px_16px_-8px_rgba(0,0,0,0.4)] transition-transform",
+            "hover:-translate-y-px disabled:opacity-50"
           )}
+          style={{ fontVariationSettings: "'wght' 600, 'wdth' 96" }}
         >
-          <Plus className="h-3.5 w-3.5" />
-          <span className="text-[13px] font-medium">New chat</span>
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+          <span className="text-[13.5px]">new chat</span>
         </button>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
           aria-label="Collapse sidebar"
-          className="ml-1 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--secondary)] hover:text-foreground"
         >
           <PanelLeftClose className="h-4 w-4" />
         </button>
@@ -190,8 +193,11 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
         ) : (
           grouped.map(({ label, items }) => (
             <div key={label} className="mt-3 first:mt-1">
-              <div className="px-3 pb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                {label}
+              <div
+                className="px-3 pb-1.5 text-[10.5px] lowercase tracking-[0.16em] text-muted-foreground"
+                style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+              >
+                {label.toLowerCase()}
               </div>
               <ul>
                 {items.map((chat) => {
@@ -235,20 +241,18 @@ export function ChatSidebar({ chats, activeChatId }: Props) {
                         <Link
                           href={`/chat/${chat.id}`}
                           className={cn(
-                            "group/row relative flex items-center gap-2 rounded-md px-3 py-2 transition-colors",
+                            "group/row relative flex items-center gap-2 rounded-xl px-3 py-2 transition-colors",
                             isActive
-                              ? "bg-secondary text-foreground"
-                              : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                              ? "bg-[var(--entity-routine)] text-[var(--entity-routine-fg)]"
+                              : "text-muted-foreground hover:bg-[var(--secondary)] hover:text-foreground"
                           )}
+                          style={{
+                            fontVariationSettings: isActive
+                              ? "'wght' 580, 'wdth' 96"
+                              : "'wght' 460, 'wdth' 96",
+                          }}
                         >
-                          {isActive && (
-                            <span
-                              aria-hidden
-                              className="pointer-events-none absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-[1px]"
-                              style={{ background: "var(--entity-plan)" }}
-                            />
-                          )}
-                          <span className="flex-1 truncate text-[13px]">{chat.title}</span>
+                          <span className="flex-1 truncate text-[13.5px]">{chat.title}</span>
                           <button
                             type="button"
                             aria-label="Chat actions"

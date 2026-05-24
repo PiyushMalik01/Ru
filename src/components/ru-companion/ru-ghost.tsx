@@ -87,7 +87,11 @@ const VOICE_CONVO_ANCHOR: Anchor = { xPct: 78, yPct: 62, tail: "left" };
 function bucketFor(pathname: string): keyof typeof ANCHORS | null {
   if (pathname.startsWith("/settings")) return null;
   if (pathname.startsWith("/onboarding")) return null;
-  if (pathname.startsWith("/chat")) return "chat";
+  // Chat surface intentionally excludes the floating mascot — the orb in
+  // each assistant message + the pill's mini-orb already carry Ru's
+  // character on the chat page. The cartoon ghost reads as a different
+  // design language pasted onto an editorial dashboard.
+  if (pathname.startsWith("/chat")) return null;
 
   if (/^\/plans\/[0-9a-f-]{36}/i.test(pathname)) return "planDetail";
   if (pathname.startsWith("/plans")) return "plans";

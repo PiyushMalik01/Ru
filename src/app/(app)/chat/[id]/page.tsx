@@ -47,6 +47,7 @@ export default async function ChatThreadPage({
       role: m.role,
       content: m.content,
       cards: extractCardsFromMetadata(m.metadata),
+      created_at: m.created_at,
     }))
     // Keep messages that have prose OR cards — silent tool-only assistant
     // turns are legitimate (e.g. "log this water" produces a tracker card
