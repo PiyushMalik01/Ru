@@ -41,10 +41,18 @@ export async function fetchChatMessages(
   supabase: Supabase,
   userId: string,
   chatId: string
-): Promise<{ id: string; role: "user" | "assistant"; content: string; created_at: string }[]> {
+): Promise<
+  {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    created_at: string;
+    metadata: unknown;
+  }[]
+> {
   const { data } = await supabase
     .from("messages")
-    .select("id, role, content, created_at")
+    .select("id, role, content, created_at, metadata")
     .eq("user_id", userId)
     .eq("chat_id", chatId)
     .order("created_at", { ascending: true })

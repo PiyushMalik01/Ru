@@ -9,6 +9,7 @@ import {
   listChats,
   pickLandingChat,
 } from "@/lib/queries/chats";
+import { extractCardsFromMetadata } from "@/lib/chat-cards";
 import type { ChatMessage } from "@/lib/stores/chat-store";
 
 export const dynamic = "force-dynamic";
@@ -66,13 +67,15 @@ export default async function ChatPage() {
   ]);
 
   const initialMessages: ChatMessage[] = messages
-    .filter((m) => m.content && m.content.length > 0)
     .map((m) => ({
       id: m.id,
       role: m.role,
       content: m.content,
-      cards: [],
-    }));
+      cards: extractCardsFromMetadata(m.metadata),
+    }))
+    // Keep messages that have prose OR cards — silent tool-only assistant
+    // turns are legitimate and should still appear in history.
+    .filter((m) => (m.content && m.content.length > 0) || m.cards.length > 0);
 
   return (
     <div className="flex h-[calc(100vh-3rem)] w-full">

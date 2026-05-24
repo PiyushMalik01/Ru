@@ -401,6 +401,11 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const send = (event: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       let assistantText = "";
+      // Collect cards as they fly past so we can persist them on the
+      // assistant message's metadata.cards at finalize. Without this, cards
+      // are visible during the turn but vanish on next chat load — the
+      // user reported logged trackers / routine check-ins disappearing.
+      const cardsForMessage: Array<{ kind: string; data: unknown }> = [];
       try {
         for await (const event of runConversation({
           supabase,
@@ -414,6 +419,14 @@ export async function POST(req: NextRequest) {
           signal: req.signal,
         })) {
           if (event.type === "text") assistantText += event.delta;
+          if (
+            event.type === "tool_result" &&
+            typeof event.cardKind === "string" &&
+            event.card !== undefined &&
+            event.card !== null
+          ) {
+            cardsForMessage.push({ kind: event.cardKind, data: event.card });
+          }
           send(event);
         }
       } catch (e) {
@@ -434,7 +447,16 @@ export async function POST(req: NextRequest) {
               userInsertP,
               supabase
                 .from("messages")
-                .update({ content: assistantText })
+                .update({
+                  content: assistantText,
+                  // Empty object when there were no cards so we don't clobber
+                  // any other metadata fields someone might add later. Cards
+                  // are the only consumer today.
+                  metadata:
+                    cardsForMessage.length > 0
+                      ? { cards: cardsForMessage }
+                      : {},
+                })
                 .eq("id", assistantMsgId),
               chatMetaP,
               // After the assistant content lands, bump updated_at once more so
