@@ -1,12 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import {
   fetchTracker,
   fetchTrackerEntries,
   computeStats,
   primaryField,
+  type TrackerField,
 } from "@/lib/queries/trackers";
 import { trackerColor } from "@/lib/trackers/color";
 import { TrackerChart } from "@/components/trackers/tracker-chart";
@@ -14,6 +16,8 @@ import { TrackerEntryForm } from "@/components/trackers/tracker-entry-form";
 import { TrackerFieldsPanel } from "@/components/trackers/tracker-fields-panel";
 import { TrackerEntriesTable } from "@/components/trackers/tracker-entries-table";
 import { TrackerSettings } from "@/components/trackers/tracker-settings";
+import { HeroBand } from "@/components/editorial/hero-band";
+import { SectionHead } from "@/components/editorial/section-head";
 
 export const dynamic = "force-dynamic";
 
@@ -34,63 +38,73 @@ export default async function TrackerDetailPage({
   const stats = computeStats(tracker, entries);
   const primary = primaryField(tracker);
   const color = trackerColor(tracker.id);
+  const accent = color.bg;
   const chartType = tracker.display_config.chart_type ?? "line";
 
+  const category = deriveCategory(tracker.name, primary);
+  const entryWord = stats.entryCount === 1 ? "entry" : "entries";
+  const eyebrow = `tracker · ${category} · ${stats.entryCount} ${entryWord}`;
+
+  const latestValue =
+    primary && entries[0] ? entries[0].values[primary.key] : undefined;
+  const latestNum =
+    typeof latestValue === "number" && Number.isFinite(latestValue)
+      ? latestValue
+      : null;
+  const latestStr =
+    latestNum !== null
+      ? formatNum(latestNum)
+      : typeof latestValue === "string"
+        ? latestValue
+        : null;
+
+  const subtitle = buildSubtitle({
+    latestStr,
+    primary,
+    lastEnteredAt: stats.lastEnteredAt,
+    description: tracker.description,
+  });
+
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pt-6 pb-32">
-      {/* Breadcrumb */}
+    <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
       <Link
         href="/routines"
         className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft className="h-3 w-3" />
-        Trackers
+        trackers
       </Link>
 
-      {/* Hero */}
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--hairline-soft)] pb-6">
-        <div className="min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            tracker · {stats.entryCount} {stats.entryCount === 1 ? "entry" : "entries"}
-            {stats.streakDays > 1 && (
-              <span className="ml-2">· {stats.streakDays}-day streak</span>
-            )}
-          </div>
-          <h1 className="h-page mt-3 lowercase">
-            {tracker.name.toLowerCase()}
-          </h1>
-          {tracker.description && (
-            <p className="mt-2 max-w-2xl text-[15px] text-muted-foreground" style={{ lineHeight: 1.6 }}>
-              {tracker.description}
-            </p>
-          )}
-        </div>
+      <div className="mt-5">
+        <HeroBand
+          eyebrow={eyebrow}
+          title={tracker.name}
+          subtitle={subtitle ?? undefined}
+          trailing={
+            latestStr ? (
+              <HeroLatest value={latestStr} unit={primary?.unit} />
+            ) : undefined
+          }
+        />
+      </div>
 
-        {/* Stat block — only render if there's something to show */}
-        {primary && stats.primaryAvg !== null && stats.primarySum !== null && (
-          <div className="flex items-baseline gap-6 text-foreground">
-            <div className="text-right">
-              <div className="font-display text-[32px] leading-none tabular-nums">
-                {formatNum(stats.primaryAvg)}
-              </div>
-              <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                avg {primary.label}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="font-display text-[32px] leading-none tabular-nums">
-                {formatNum(stats.primarySum)}
-              </div>
-              <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                total {primary.unit ?? ""}
-              </div>
-            </div>
-          </div>
-        )}
-      </header>
+      {stats.entryCount > 0 && (
+        <section className="mt-7 grid grid-cols-3 gap-2.5 sm:gap-3">
+          <Ledger label="entries" value={stats.entryCount.toString()} />
+          <Ledger
+            label={primary ? `avg ${primary.label.toLowerCase()}` : "avg"}
+            value={stats.primaryAvg !== null ? formatNum(stats.primaryAvg) : "—"}
+            unit={stats.primaryAvg !== null ? primary?.unit : undefined}
+          />
+          <Ledger
+            label="latest"
+            value={latestStr ?? "—"}
+            unit={latestStr ? primary?.unit : undefined}
+          />
+        </section>
+      )}
 
-      {/* Settings strip — rename / chart type / archive */}
-      <div className="mt-6">
+      <div className="mt-10">
         <TrackerSettings
           trackerId={tracker.id}
           trackerName={tracker.name}
@@ -98,46 +112,184 @@ export default async function TrackerDetailPage({
         />
       </div>
 
-      {/* Chart */}
-      <div className="mt-6">
-        <TrackerChart
-          entries={entries}
-          primary={primary}
-          chartType={chartType}
-          color={color}
+      <section className="mt-10">
+        <SectionHead
+          eyebrow="trend"
+          sublabel={
+            primary
+              ? `${primary.label.toLowerCase()}${primary.unit ? ` · ${primary.unit}` : ""}`
+              : "over time"
+          }
+          count={entries.length}
+          accent={accent}
         />
-      </div>
-
-      {/* Two-column: entry form + fields panel */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <TrackerEntryForm
-          trackerId={tracker.id}
-          fields={tracker.fields}
-          accent={color}
-        />
-        <TrackerFieldsPanel trackerId={tracker.id} fields={tracker.fields} />
-      </div>
-
-      {/* Entries table */}
-      <div className="mt-8">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="h-section lowercase">
-            recent entries
-          </h2>
-          {entries.length > 0 && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              latest {Math.min(entries.length, 200)}
-            </span>
-          )}
+        <div className="mt-5">
+          <TrackerChart
+            entries={entries}
+            primary={primary}
+            chartType={chartType}
+            color={color}
+          />
         </div>
-        <TrackerEntriesTable
-          trackerId={tracker.id}
-          entries={entries}
-          fields={tracker.fields}
+      </section>
+
+      <section className="mt-10">
+        <SectionHead
+          eyebrow="log"
+          sublabel="new entry"
+          count={tracker.fields.length}
+          accent={accent}
         />
-      </div>
+        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <TrackerEntryForm
+            trackerId={tracker.id}
+            fields={tracker.fields}
+            accent={color}
+          />
+          <TrackerFieldsPanel trackerId={tracker.id} fields={tracker.fields} />
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <SectionHead
+          eyebrow="recent entries"
+          sublabel={
+            entries.length === 0
+              ? "nothing logged yet"
+              : `latest ${Math.min(entries.length, 200)}`
+          }
+          count={entries.length}
+          accent={accent}
+        />
+        <div className="mt-5">
+          <TrackerEntriesTable
+            trackerId={tracker.id}
+            entries={entries}
+            fields={tracker.fields}
+          />
+        </div>
+      </section>
     </div>
   );
+}
+
+function HeroLatest({ value, unit }: { value: string; unit?: string }) {
+  return (
+    <div className="flex items-baseline gap-2 text-foreground">
+      <span
+        className="font-display tabular-nums leading-[0.9]"
+        style={{
+          fontSize: "clamp(40px, 6vw, 64px)",
+          fontVariationSettings: "'wght' 580, 'opsz' 96",
+          letterSpacing: "-0.03em",
+        }}
+      >
+        {value}
+      </span>
+      {unit && (
+        <span
+          className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground"
+          style={{ fontVariationSettings: "'wght' 560, 'wdth' 100" }}
+        >
+          {unit}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function Ledger({
+  label,
+  value,
+  unit,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-[var(--hairline)] bg-[var(--card)] px-4 py-3 sm:px-5 sm:py-4">
+      <span
+        className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
+        style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+      >
+        {label}
+      </span>
+      <span className="flex items-baseline gap-1.5">
+        <span
+          className="font-display leading-[0.9] tabular-nums"
+          style={{
+            fontSize: "clamp(28px, 4.4vw, 40px)",
+            fontVariationSettings: "'wght' 580, 'opsz' 96",
+            letterSpacing: "-0.025em",
+          }}
+        >
+          {value}
+        </span>
+        {unit && (
+          <span
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+            style={{ fontVariationSettings: "'wght' 560, 'wdth' 100" }}
+          >
+            {unit}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function deriveCategory(name: string, primary: TrackerField | null): string {
+  const n = name.toLowerCase();
+  if (/mood|feel|emotion/.test(n)) return "mood";
+  if (/weight|kg|lb|lbs/.test(n)) return "weight";
+  if (/sleep|rest/.test(n)) return "sleep";
+  if (/run|walk|step|workout|gym|exercise|fitness/.test(n)) return "fitness";
+  if (/water|hydrat|drink/.test(n)) return "hydration";
+  if (/read|book|page/.test(n)) return "reading";
+  if (/meditat|mindful|breath/.test(n)) return "practice";
+  if (primary?.type === "duration") return "duration";
+  if (primary?.unit) return primary.unit.toLowerCase();
+  return "log";
+}
+
+function buildSubtitle({
+  latestStr,
+  primary,
+  lastEnteredAt,
+  description,
+}: {
+  latestStr: string | null;
+  primary: TrackerField | null;
+  lastEnteredAt: string | null;
+  description: string | null;
+}): string | null {
+  const parts: string[] = [];
+  if (latestStr) {
+    const unit = primary?.unit ? ` ${primary.unit}` : "";
+    parts.push(`latest ${latestStr}${unit}`);
+  }
+  if (lastEnteredAt) {
+    parts.push(relativeFromNow(lastEnteredAt));
+  }
+  const summary = parts.join(" · ");
+  if (description && summary) return `${description.toLowerCase()} — ${summary}`;
+  if (description) return description.toLowerCase();
+  return summary || null;
+}
+
+function relativeFromNow(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.floor((now - then) / 1000));
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return format(new Date(iso), "MMM d").toLowerCase();
 }
 
 function formatNum(n: number): string {

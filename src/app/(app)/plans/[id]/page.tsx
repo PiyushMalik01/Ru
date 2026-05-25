@@ -1,20 +1,19 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { fetchWorkspaceDetail, type WorkspaceItem } from "@/lib/queries/workspace";
-import {
-  ENTITY_COLOR_VAR,
-  type EntityKind,
-} from "@/components/app-shell/primitives";
+import { SectionHead } from "@/components/editorial/section-head";
 import { SheetRow, type SheetRowData } from "@/components/sheet/sheet-row";
 import { PlanTitle } from "@/components/plans/plan-title";
-import { PlanStatStrip } from "@/components/plans/plan-stat-strip";
 
 export const dynamic = "force-dynamic";
 
 interface SectionGroup {
-  kind: "task" | "routine" | "reminder" | "activity";
+  key: "task" | "routine" | "reminder" | "activity";
   label: string;
+  sublabel: string;
+  accent: string;
   rows: SheetRowData[];
 }
 
@@ -94,105 +93,136 @@ export default async function PlanDetailPage({
   if (!detail) notFound();
 
   const nowMs = Date.now();
+  const todayLabel = format(new Date(nowMs), "EEE MMM d").toLowerCase();
 
   const rows: SheetRowData[] = detail.items.map((item, i) =>
     toRow(item, i + 1, detail.workspace.id, detail.workspace.title),
   );
 
-  // Settled: completed tasks + activities (v1 approximation)
+  const itemCount = rows.length;
   const doneCount = rows.filter(
     (r) => r.status === "completed" || r.kind === "activity",
   ).length;
+  const pct = itemCount > 0 ? Math.round((doneCount / itemCount) * 100) : 0;
 
-  // Group by kind, preserving order within each group.
   const groups: SectionGroup[] = [
-    { kind: "task", label: "tasks", rows: rows.filter((r) => r.kind === "task") },
-    { kind: "routine", label: "routines", rows: rows.filter((r) => r.kind === "routine") },
-    { kind: "reminder", label: "reminders", rows: rows.filter((r) => r.kind === "reminder") },
-    { kind: "activity", label: "log", rows: rows.filter((r) => r.kind === "activity") },
+    {
+      key: "task",
+      label: "tasks",
+      sublabel: "one-off work",
+      accent: "var(--entity-task)",
+      rows: rows.filter((r) => r.kind === "task"),
+    },
+    {
+      key: "routine",
+      label: "routines",
+      sublabel: "recurring practice",
+      accent: "var(--entity-routine)",
+      rows: rows.filter((r) => r.kind === "routine"),
+    },
+    {
+      key: "reminder",
+      label: "reminders",
+      sublabel: "nudges scheduled",
+      accent: "var(--entity-reminder)",
+      rows: rows.filter((r) => r.kind === "reminder"),
+    },
+    {
+      key: "activity",
+      label: "log",
+      sublabel: "what's already happened",
+      accent: "var(--entity-activity)",
+      rows: rows.filter((r) => r.kind === "activity"),
+    },
   ];
 
-  // Compute "last touched" from rows' whenIso or fall back to updated_at.
-  const lastTouchedMs = Math.max(
-    new Date(detail.workspace.updated_at).getTime(),
-    ...rows
-      .map((r) => (r.whenIso ? new Date(r.whenIso).getTime() : 0))
-      .filter((t) => Number.isFinite(t)),
-  );
-  const lastTouchedIso = new Date(lastTouchedMs).toISOString();
+  const archived = detail.workspace.archived;
+  const description = detail.workspace.description?.trim();
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 pt-10 pb-32">
-      {/* Breadcrumb */}
-      <nav className="flex items-baseline gap-2 font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/70">
+    <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
+      <nav className="mb-6 flex items-baseline gap-2 font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/70">
         <Link href="/plans" className="ru-link hover:text-foreground">
           plans
         </Link>
         <span className="text-muted-foreground/30">›</span>
-        <span className="truncate text-foreground">{detail.workspace.title}</span>
+        <span className="truncate text-foreground">
+          {detail.workspace.title}
+        </span>
       </nav>
 
-      {/* Hero — plan tone bar, big Fraunces title, description */}
-      <header className="mt-8">
-        {/* Tone bar above the title */}
-        <div
-          className="h-1 w-24 rounded-full"
-          style={{ background: "var(--entity-plan)" }}
-          aria-hidden
-        />
-        <div className="mt-5">
-          <PlanTitleHero
-            id={detail.workspace.id}
-            initial={detail.workspace.title}
-          />
-        </div>
-        {detail.workspace.description ? (
-          <p className="mt-5 max-w-2xl text-[15.5px] leading-relaxed text-muted-foreground">
-            {detail.workspace.description}
-          </p>
-        ) : (
-          <p className="mt-5 max-w-2xl text-[14px] italic leading-relaxed text-muted-foreground/45">
-            no description yet — ru will fill this in as the plan develops.
-          </p>
-        )}
-        <div className="mt-5 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+      <header className="flex flex-col gap-2.5">
+        <div className="flex items-center gap-2.5">
           <span
-            className="inline-block h-2 w-2 rounded-[2px]"
+            className="inline-flex h-2 w-2 shrink-0 rounded-[2px]"
             style={{ background: "var(--entity-plan)" }}
             aria-hidden
           />
-          <span>plan</span>
-          <span className="text-muted-foreground/30">·</span>
-          <span>{detail.workspace.archived ? "archived" : "active"}</span>
-          <span className="text-muted-foreground/30">·</span>
-          <span>
-            {rows.length.toString().padStart(2, "0")}{" "}
-            <span className="text-muted-foreground/50">items</span>
+          <span
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground"
+            style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+          >
+            {`plan · ${todayLabel} · ${itemCount} item${itemCount === 1 ? "" : "s"}${archived ? " · archived" : ""}`}
           </span>
         </div>
+        <PlanTitleHero id={detail.workspace.id} initial={detail.workspace.title} />
+        <p
+          className="max-w-[60ch] text-[14px] leading-[1.45] text-muted-foreground"
+          style={{
+            fontVariationSettings: "'wght' 460, 'wdth' 96",
+            fontStyle: description ? undefined : "italic",
+          }}
+        >
+          {description ||
+            "no description yet — ru will fill this in as the plan develops."}
+        </p>
       </header>
 
-      {/* Stat strip — 3 ochre mini bentos */}
-      <div className="mt-8">
-        <PlanStatStrip
-          itemCount={rows.length}
-          doneCount={doneCount}
-          lastTouchedIso={lastTouchedIso}
-          nowMs={nowMs}
-        />
-      </div>
+      {itemCount > 0 && (
+        <section className="mt-7 grid grid-cols-3 gap-2.5 sm:gap-3">
+          <Ledger label="items" value={itemCount.toString().padStart(2, "0")} />
+          <Ledger label="settled" value={doneCount.toString().padStart(2, "0")} />
+          <Ledger label="progress" value={`${pct}%`} />
+        </section>
+      )}
 
-      {/* Sectioned content */}
-      <div className="mt-12 space-y-12">
-        {rows.length === 0 ? (
-          <div className="rounded-[28px] border border-dashed border-[var(--hairline)] py-20 text-center font-mono text-[12px] lowercase tracking-wide text-muted-foreground/60">
-            this plan has no items yet. add them from /chat or the sheet.
+      <div className="mt-12 flex flex-col gap-10">
+        {itemCount === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--hairline)] py-20 text-center">
+            <p
+              className="text-[18px] leading-[1.2] text-muted-foreground"
+              style={{
+                fontVariationSettings: "'wght' 500, 'wdth' 96",
+                letterSpacing: "-0.015em",
+              }}
+            >
+              this plan has no items yet
+            </p>
+            <p className="mt-3 font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/60">
+              add them from /chat or the sheet
+            </p>
           </div>
         ) : (
           groups
             .filter((g) => g.rows.length > 0)
             .map((g) => (
-              <SectionGroup key={g.kind} group={g} nowMs={nowMs} />
+              <section key={g.key}>
+                <SectionHead
+                  eyebrow={g.label}
+                  sublabel={g.sublabel}
+                  count={g.rows.length}
+                  accent={g.accent}
+                />
+                <div className="mt-1">
+                  {g.rows.map((r) => (
+                    <SheetRow
+                      key={`${r.kind}-${r.id}`}
+                      row={r}
+                      nowMs={nowMs}
+                    />
+                  ))}
+                </div>
+              </section>
             ))
         )}
       </div>
@@ -200,67 +230,32 @@ export default async function PlanDetailPage({
   );
 }
 
-function SectionGroup({
-  group,
-  nowMs,
-}: {
-  group: SectionGroup;
-  nowMs: number;
-}) {
-  const tint = ENTITY_COLOR_VAR[group.kind as EntityKind];
+function Ledger({ label, value }: { label: string; value: string }) {
   return (
-    <section>
-      <div className="mb-1 flex items-baseline gap-3 border-b border-[var(--hairline)] pb-3">
-        <span
-          className="inline-block h-2.5 w-2.5 rounded-[2px]"
-          style={{ background: tint }}
-          aria-hidden
-        />
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
-          {group.label}
-        </span>
-        <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground/60">
-          {group.rows.length.toString().padStart(2, "0")}
-        </span>
-      </div>
-
-      {/* Column header (compact) */}
-      <div
-        className="grid items-center gap-4 pl-5 pr-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/55 border-b border-[var(--hairline-soft)]"
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-[var(--hairline)] bg-[var(--card)] px-4 py-3 sm:px-5 sm:py-4">
+      <span
+        className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
+        style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+      >
+        {label}
+      </span>
+      <span
+        className="font-display leading-[0.9] tabular-nums"
         style={{
-          gridTemplateColumns:
-            "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px",
+          fontSize: "clamp(28px, 4.4vw, 40px)",
+          fontVariationSettings: "'wght' 580, 'opsz' 96",
+          letterSpacing: "-0.025em",
         }}
       >
-        <span className="text-muted-foreground/30">№</span>
-        <span />
-        <span>title</span>
-        <span>status</span>
-        <span>when</span>
-        <span>plan</span>
-        <span>meta</span>
-        <span />
-      </div>
-
-      <div>
-        {group.rows.map((r) => (
-          <SheetRow key={`${r.kind}-${r.id}`} row={r} nowMs={nowMs} />
-        ))}
-      </div>
-    </section>
+        {value}
+      </span>
+    </div>
   );
 }
 
-/**
- * Wraps PlanTitle and scales it up for the detail hero.
- * PlanTitle's input uses 40px Fraunces by default; we render a larger H1
- * outside that affordance when not editing to hit 48-56px.
- */
 function PlanTitleHero({ id, initial }: { id: string; initial: string }) {
-  // We reuse PlanTitle to preserve the inline-rename UX. The component
-  // renders its own 40px headline; we wrap it with size overrides via CSS.
   return (
-    <div className="[&_h1]:text-[44px] [&_h1]:sm:text-[56px] [&_h1]:leading-[1.02] [&_input]:text-[44px] [&_input]:sm:text-[56px] [&_input]:leading-[1.02]">
+    <div className="[&_h1]:font-display [&_h1]:lowercase [&_h1]:text-[clamp(36px,5.6vw,56px)] [&_h1]:leading-[0.95] [&_h1]:tracking-[-0.03em] [&_input]:font-display [&_input]:lowercase [&_input]:text-[clamp(36px,5.6vw,56px)] [&_input]:leading-[0.95] [&_input]:tracking-[-0.03em]">
       <PlanTitle id={id} initial={initial} />
     </div>
   );

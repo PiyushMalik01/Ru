@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { fetchRoutinesWithToday, type RoutineWithToday } from "@/lib/queries/dashboard";
 import {
@@ -7,14 +8,22 @@ import {
   primaryField,
   type Tracker,
 } from "@/lib/queries/trackers";
-import { RoutineRow } from "@/components/dashboard/routine-row";
+import { HeroBand } from "@/components/editorial/hero-band";
+import { SectionHead } from "@/components/editorial/section-head";
+import { RoutineStripRow } from "@/components/routines/routine-strip-row";
 import { TrackerRow } from "@/components/trackers/tracker-row";
 
 export const dynamic = "force-dynamic";
 
 type BucketKey = "morning" | "midday" | "afternoon" | "evening" | "anytime";
 
-const BUCKET_ORDER: BucketKey[] = ["morning", "midday", "afternoon", "evening", "anytime"];
+const BUCKET_ORDER: BucketKey[] = [
+  "morning",
+  "midday",
+  "afternoon",
+  "evening",
+  "anytime",
+];
 
 const BUCKET_LABEL: Record<BucketKey, string> = {
   morning: "morning",
@@ -42,6 +51,20 @@ function bucketFor(timeOfDay: string | null): BucketKey {
   return "evening";
 }
 
+function weekProgress(routines: RoutineWithToday[]): number {
+  if (routines.length === 0) return 0;
+  let hits = 0;
+  let slots = 0;
+  for (const r of routines) {
+    for (const d of r.lastSevenDays) {
+      slots += 1;
+      if (d.completed) hits += 1;
+    }
+  }
+  if (slots === 0) return 0;
+  return Math.round((hits / slots) * 100);
+}
+
 export default async function RoutinesPage() {
   const supabase = await createClient();
   const {
@@ -55,11 +78,12 @@ export default async function RoutinesPage() {
       ])
     : [[], []];
 
-  // For each tracker, fetch a small recent window for the sparkline + stats.
   const trackerData = user
     ? await Promise.all(
         trackers.map(async (t) => {
-          const recent = await fetchTrackerEntries(supabase, user.id, t.id, { limit: 60 });
+          const recent = await fetchTrackerEntries(supabase, user.id, t.id, {
+            limit: 60,
+          });
           return {
             tracker: t,
             stats: computeStats(t, recent),
@@ -81,74 +105,83 @@ export default async function RoutinesPage() {
 
   const totalActive = routines.length;
   const doneToday = routines.filter((r) => r.todayCompleted).length;
+  const bestStreak = routines.reduce(
+    (m, r) => (r.streak > m ? r.streak : m),
+    0,
+  );
+  const weekPct = weekProgress(routines);
 
-  const today = new Date();
-  const dayName = today.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-  const dateStr = today
-    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    .toLowerCase();
+  const nowMs = Date.now();
+  const todayLabel = format(new Date(nowMs), "EEE MMM d").toLowerCase();
+
+  const heroTitle =
+    totalActive === 0
+      ? "no rhythm yet."
+      : doneToday === totalActive
+        ? "all on the page."
+        : "everyday practice.";
+
+  const heroSubtitle =
+    totalActive === 0
+      ? `tell ru about something you want to do regularly — "i want to meditate every morning at 7" — and it'll show up here.`
+      : `${doneToday} of ${totalActive} done today. mark them as you go, or just tell ru.`;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-12 px-4 pt-6 pb-24">
-      {/* Header */}
-      <header className="max-w-2xl">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          routines · {dayName} {dateStr}
-        </div>
-        <h1 className="h-page-sm mt-4 lowercase">
-          the rhythm
-        </h1>
-        {totalActive > 0 ? (
-          <p
-            className="mt-4 text-[15px] text-muted-foreground"
-            style={{ lineHeight: 1.65 }}
-          >
-            <span className="font-mono tabular-nums text-foreground">
-              {doneToday}
-            </span>
-            <span className="font-mono"> of </span>
-            <span className="font-mono tabular-nums text-foreground">
-              {totalActive}
-            </span>
-            <span className="font-mono"> done today.</span>{" "}
-            Mark them off as you go, or just tell Ru.
-          </p>
-        ) : (
-          <p
-            className="mt-4 text-[15px] text-muted-foreground"
-            style={{ lineHeight: 1.65 }}
-          >
-            Nothing here yet. Tell Ru about something you want to do regularly —{" "}
-            <span className="italic">
-              &ldquo;I want to meditate every morning at 7&rdquo;
-            </span>{" "}
-            — and it&rsquo;ll show up.
-          </p>
-        )}
-      </header>
+    <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
+      <HeroBand
+        eyebrow={`routines · ${todayLabel} · ${totalActive} active`}
+        title={heroTitle}
+        subtitle={heroSubtitle}
+      />
 
-      {/* Routine buckets */}
       {totalActive > 0 && (
-        <div className="space-y-10">
+        <section className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+          <Ledger
+            label="active"
+            value={totalActive.toString().padStart(2, "0")}
+            accent="var(--entity-routine)"
+          />
+          <Ledger
+            label="done today"
+            value={`${doneToday.toString().padStart(2, "0")} / ${totalActive
+              .toString()
+              .padStart(2, "0")}`}
+            accent={
+              doneToday === totalActive
+                ? "var(--entity-routine)"
+                : "var(--entity-task)"
+            }
+            filled={doneToday === totalActive && totalActive > 0}
+          />
+          <Ledger
+            label="best streak"
+            value={bestStreak.toString().padStart(2, "0")}
+            accent="var(--entity-insight)"
+          />
+          <Ledger
+            label="this week"
+            value={`${weekPct}%`}
+            accent="var(--entity-plan)"
+          />
+        </section>
+      )}
+
+      {totalActive > 0 && (
+        <div className="mt-12 flex flex-col gap-9">
           {BUCKET_ORDER.map((key) => {
             const items = grouped[key];
             if (items.length === 0) return null;
             return (
               <section key={key}>
-                <div className="mb-1 flex items-baseline gap-3 border-b border-[rgba(255,255,255,0.08)] pb-3">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground">
-                    {BUCKET_LABEL[key]}
-                  </span>
-                  <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground/60">
-                    {BUCKET_SUBLABEL[key]}
-                  </span>
-                  <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground/60">
-                    {items.length.toString().padStart(2, "0")}
-                  </span>
-                </div>
-                <div>
-                  {items.map((r) => (
-                    <RoutineRow
+                <SectionHead
+                  eyebrow={BUCKET_LABEL[key]}
+                  sublabel={BUCKET_SUBLABEL[key]}
+                  count={items.length}
+                  accent="var(--entity-routine)"
+                />
+                <div className="mt-2">
+                  {items.map((r, i) => (
+                    <RoutineStripRow
                       key={r.id}
                       id={r.id}
                       title={r.title}
@@ -158,6 +191,7 @@ export default async function RoutinesPage() {
                       todayCompleted={r.todayCompleted}
                       lastSevenDays={r.lastSevenDays}
                       origin={r.origin}
+                      isLast={i === items.length - 1}
                     />
                   ))}
                 </div>
@@ -167,37 +201,68 @@ export default async function RoutinesPage() {
         </div>
       )}
 
-      {/* Trackers — quantitative logs over time, lives next to routines because
-          they're both "things I do regularly". A separate section so they
-          don't visually mix with the time-of-day routine grouping above. */}
-      <section className="space-y-5">
-        <div className="flex items-baseline justify-between gap-4 border-b border-[var(--hairline-soft)] pb-3">
-          <div>
-            <h2 className="h-section lowercase">
-              trackers
-            </h2>
-            <p className="mt-1 text-[13px] text-muted-foreground">
-              Quantitative logs — runs, workouts, anything you want to follow
-              over time.
+      {totalActive === 0 && (
+        <div className="mt-10">
+          <div
+            className="rounded-2xl px-6 py-14 text-center"
+            style={{
+              background: "var(--entity-routine)",
+              color: "var(--entity-routine-fg)",
+            }}
+          >
+            <span
+              className="font-mono text-[10px] uppercase tracking-[0.22em]"
+              style={{ fontVariationSettings: "'wght' 640, 'wdth' 100" }}
+            >
+              no rhythm
+            </span>
+            <p
+              className="mx-auto mt-3 max-w-md font-display lowercase leading-[1.05]"
+              style={{
+                fontSize: "clamp(26px, 3.4vw, 34px)",
+                fontVariationSettings: "'wght' 580, 'opsz' 96",
+                letterSpacing: "-0.03em",
+              }}
+            >
+              every practice begins with one quiet promise.
+            </p>
+            <p
+              className="mx-auto mt-3 max-w-[44ch] text-[14px] leading-[1.55]"
+              style={{ fontVariationSettings: "'wght' 460, 'wdth' 96" }}
+            >
+              tell ru —{" "}
+              <span className="italic">
+                &ldquo;i do a morning walk every weekday at 7&rdquo;
+              </span>{" "}
+              — and a routine appears.
             </p>
           </div>
-          {trackerData.length > 0 && (
-            <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
-              {trackerData.length.toString().padStart(2, "0")}
-            </span>
-          )}
         </div>
+      )}
 
+      <section className="mt-14">
+        <SectionHead
+          eyebrow="trackers"
+          sublabel="quantitative logs"
+          count={trackerData.length}
+          accent="var(--entity-activity)"
+        />
         {trackerData.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[var(--hairline)] bg-[var(--secondary)]/30 px-6 py-7 text-[14px] text-muted-foreground">
-            None yet. Tell Ru what you want to track —{" "}
+          <div
+            className="mt-3 rounded-2xl border border-dashed px-6 py-7 text-[14px] text-muted-foreground"
+            style={{
+              borderColor: "var(--hairline)",
+              fontVariationSettings: "'wght' 460, 'wdth' 96",
+            }}
+          >
+            none yet. tell ru what you want to track —{" "}
             <span className="italic text-foreground">
               &ldquo;track my runs with distance, time, and pace&rdquo;
             </span>{" "}
             — and a tracker will appear here.
           </div>
         ) : (
-          <div>
+          <div className="mt-2">
             {trackerData.map((t) => (
               <TrackerRow
                 key={t.tracker.id}
@@ -210,6 +275,59 @@ export default async function RoutinesPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function Ledger({
+  label,
+  value,
+  accent,
+  filled = false,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+  filled?: boolean;
+}) {
+  return (
+    <div
+      className="flex flex-col gap-1.5 rounded-2xl px-4 py-3 sm:px-5 sm:py-4"
+      style={{
+        background: filled ? accent : "var(--card)",
+        color: filled ? "var(--entity-routine-fg)" : "var(--foreground)",
+        boxShadow: filled
+          ? "0 4px 18px -8px rgba(0,0,0,0.18)"
+          : "inset 0 0 0 1px var(--hairline)",
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="inline-block h-2 w-2 rounded-[2px]"
+          style={{ background: filled ? "currentColor" : accent }}
+        />
+        <span
+          className={
+            filled
+              ? "font-mono text-[10px] uppercase tracking-[0.22em] opacity-85"
+              : "font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+          }
+          style={{ fontVariationSettings: "'wght' 640, 'wdth' 100" }}
+        >
+          {label}
+        </span>
+      </div>
+      <span
+        className="font-display leading-[0.9] tabular-nums"
+        style={{
+          fontSize: "clamp(28px, 4.2vw, 40px)",
+          fontVariationSettings: "'wght' 580, 'opsz' 96",
+          letterSpacing: "-0.025em",
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
