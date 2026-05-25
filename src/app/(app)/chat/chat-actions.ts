@@ -16,9 +16,14 @@ export async function createChat(): Promise<{ id?: string; error?: string }> {
     .single();
   if (error || !data) return { error: error?.message ?? "could not create chat" };
 
+  // Clear current_workspace_id too — a brand-new chat must NOT inherit
+  // the previous chat's "current workspace" (otherwise tasks/routines/
+  // reminders created in the new chat auto-attach to a totally unrelated
+  // workspace via tool handlers that read current_workspace_id). The
+  // chat will call open_workspace itself if it ever wants one.
   await supabase
     .from("profiles")
-    .update({ current_chat_id: data.id })
+    .update({ current_chat_id: data.id, current_workspace_id: null })
     .eq("id", user.id);
 
   revalidatePath("/chat");

@@ -587,18 +587,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
               // bumps so the subscriber can decide what to do (default bank).
               lastToolCall: { name: toolName, tick: prevTick + 1 },
             });
-          } else if (event.type === "tool_result" && event.cardKind) {
-            const msgs = get().messages.slice();
-            const last = msgs[msgs.length - 1];
-            if (last) {
-              last.cards = [
-                ...last.cards,
-                {
-                  kind: event.cardKind as CardKind,
-                  data: (event.card as Record<string, unknown>) ?? {},
-                },
-              ];
-              set({ messages: msgs });
+          } else if (event.type === "tool_result") {
+            if (event.cardKind) {
+              const msgs = get().messages.slice();
+              const last = msgs[msgs.length - 1];
+              if (last) {
+                last.cards = [
+                  ...last.cards,
+                  {
+                    kind: event.cardKind as CardKind,
+                    data: (event.card as Record<string, unknown>) ?? {},
+                  },
+                ];
+                set({ messages: msgs });
+              }
+            }
+            // The tool finished. Transition back from "tooling" to
+            // "thinking" so the loader doesn't sit on a stale tool name
+            // ("SETTING REMINDER") while the next LLM round is in flight.
+            // A subsequent tool_call will re-enter "tooling" with the
+            // new label; a text delta will move us to "speaking".
+            if (get().thinking === "tooling") {
+              set({ thinking: "thinking", thinkingLabel: null });
             }
           } else if (event.type === "stream_end") {
             flushType(set as Setter, get);

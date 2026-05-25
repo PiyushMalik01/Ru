@@ -31,6 +31,26 @@ export interface RoutineCardData {
   status?: "done" | "skipped_today" | string;
 }
 
+/**
+ * Normalize a `time_of_day` value into a friendly display string.
+ * Handles Postgres TIME ("07:00:00"), HH:MM ("07:00"), and already-
+ * formatted strings ("7am", "7:00 AM") — returns the input untouched
+ * when it doesn't parse as a time.
+ */
+function formatTimeOfDay(t?: string | null): string {
+  if (!t) return "";
+  // HH:MM[:SS] from Postgres TIME column — convert to 12h with AM/PM.
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return t;
+  let hours = Number(m[1]);
+  const minutes = m[2];
+  if (Number.isNaN(hours)) return t;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return minutes === "00" ? `${hours} ${ampm}` : `${hours}:${minutes} ${ampm}`;
+}
+
 // Full lime tile, black type. Streak as the hero number in Fraunces.
 export function RoutineCard({ data }: { data: RoutineCardData }) {
   const [today, setToday] = useState<"done" | "skipped" | "none">(
@@ -53,6 +73,7 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
   const missedWindow =
     today === "none" &&
     timeOfDayHasPassedToday(data.time_of_day ?? null);
+  const friendlyTime = formatTimeOfDay(data.time_of_day);
 
   function doDone() {
     setError(null);
@@ -96,12 +117,12 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
           </>
         )}
         {missedWindow && <StaleMark>missed today</StaleMark>}
-        {data.time_of_day && (
+        {friendlyTime && (
           <span
             className="ml-auto text-[11px] tabular-nums opacity-85"
             style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
           >
-            {data.time_of_day}
+            {friendlyTime}
           </span>
         )}
       </div>

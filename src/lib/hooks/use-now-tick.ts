@@ -27,9 +27,10 @@ export function useNowTick(intervalMs = 60_000): number {
  */
 export function timeOfDayHasPassedToday(t?: string | null): boolean {
   if (!t) return false;
+  // Accept HH:MM:SS (Postgres TIME column), HH:MM, "7am", "7:00 AM", "07:30".
   const m = t
     .trim()
-    .match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*$/i);
+    .match(/^(\d{1,2}):?(\d{2})?(?::\d{2})?\s*(am|pm)?\s*$/i);
   if (!m) return false;
   let hours = Number(m[1]);
   const minutes = Number(m[2] ?? "0");

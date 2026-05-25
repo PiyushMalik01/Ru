@@ -27,14 +27,12 @@ export async function openWorkspace(
     .eq("id", ctx.userId);
   if (profileErr) return { ok: false, message: profileErr.message };
 
+  // No chat card emitted — the workspace appears in the right panel
+  // immediately on creation. A chat card duplicates that info and (until
+  // we add a dedicated workspace card kind) misrenders through the
+  // InsightCard fallback as a confusing "0 / title / THIS WEEK" block.
   return {
     ok: true,
     message: `Opened workspace: ${title}`,
-    cardKind: "insight",
-    card: {
-      kind: "workspace_opened",
-      workspaceId: workspace.id,
-      title: workspace.title,
-    },
   };
 }
