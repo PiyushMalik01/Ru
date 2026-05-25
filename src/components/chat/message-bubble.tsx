@@ -156,6 +156,16 @@ export function MessageBubble({ message, isLast = false }: Props) {
   }
 
   // ===== ASSISTANT =====
+  // An empty, non-streaming assistant message means the stream was aborted
+  // before any text or cards landed. Rendering an orb + timestamp with no
+  // content reads as a phantom turn. Hide it.
+  if (
+    !message.streaming &&
+    !message.content &&
+    message.cards.length === 0
+  ) {
+    return null;
+  }
   const showCaret = message.streaming === true;
   return (
     <div className="group/msg flex w-full">

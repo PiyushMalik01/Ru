@@ -328,14 +328,23 @@ export function FloatingPill() {
                   <input
                     ref={inputRef}
                     type="text"
-                    placeholder="Talk to Ru…"
+                    placeholder={
+                      isStreaming
+                        ? "Ru is replying… hit stop to interrupt"
+                        : "Talk to Ru…"
+                    }
                     value={input}
                     onChange={(e) => {
                       setInput(e.target.value);
                       setState(e.target.value ? "typing" : "idle");
                     }}
                     onKeyDown={handleKeyDown}
-                    className="w-full bg-transparent py-2 text-[14.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                    // Block typing-while-streaming. If the user fires a new
+                    // message while Ru is mid-stream the previous turn gets
+                    // orphaned and may drop entirely. They can hit Stop
+                    // first, then send.
+                    disabled={isStreaming}
+                    className="w-full bg-transparent py-2 text-[14.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:cursor-not-allowed disabled:placeholder:text-muted-foreground/50"
                   />
                 )}
               </div>
