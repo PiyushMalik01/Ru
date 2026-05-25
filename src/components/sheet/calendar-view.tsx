@@ -13,9 +13,16 @@
 //   - Today's column has a stronger lime tint + the live "now" line.
 //   - Click a block → popover with detail.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock, RotateCcw, X } from "lucide-react";
+import { toggleTaskComplete } from "@/app/(app)/tasks/actions";
+import { toggleRoutineToday } from "@/app/(app)/routines/actions";
+import {
+  dismissReminderInline,
+  snoozeReminderInline,
+  deleteActivityInline,
+} from "@/app/(app)/chat/card-actions";
 import {
   addDays,
   addWeeks,
@@ -295,12 +302,17 @@ export function CalendarView({ items, anchor, mode, nowMs }: Props) {
         <div className="relative" style={{ height: HOUR_HEIGHT_PX * HOUR_COUNT }}>
           {Array.from({ length: HOUR_COUNT + 1 }, (_, i) => {
             const hour = START_HOUR + i;
-            if (i === 0 || i === HOUR_COUNT) return null;
+            // Hide only the trailing edge — the leading edge (6 am) anchors
+            // the rail; without it the first row of items reads as unlabeled.
+            if (i === HOUR_COUNT) return null;
             return (
               <div
                 key={hour}
-                className="absolute right-3 -translate-y-1/2 font-mono text-[10px] tabular-nums text-muted-foreground/65"
-                style={{ top: i * HOUR_HEIGHT_PX }}
+                className={cn(
+                  "absolute right-3 font-mono text-[10px] tabular-nums text-muted-foreground/65",
+                  i === 0 ? "top-0" : "-translate-y-1/2",
+                )}
+                style={{ top: i === 0 ? 0 : i * HOUR_HEIGHT_PX }}
               >
                 {format(new Date(2000, 0, 1, hour), "h a").toLowerCase()}
               </div>
@@ -378,7 +390,11 @@ function computeNowOffset(now: Date): number | null {
 }
 
 function ItemBlock({ item }: { item: PlacedItem }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [dropAbove, setDropAbove] = useState(false);
+  const [pending, setPending] = useState(false);
+  const blockRef = useRef<HTMLButtonElement | null>(null);
   const t = new Date(item.whenIso);
 
   const startClamped = Math.max(item.startMin, START_HOUR * 60);
@@ -392,6 +408,38 @@ function ItemBlock({ item }: { item: PlacedItem }) {
   const leftPct = item.column * widthPct;
   const compact = item.totalColumns >= 3 || height < 44;
 
+  // Decide popover placement: above the block if there's not enough room
+  // below in the viewport. Fixes the off-screen-popover bug on afternoon
+  // items in the lower half of the calendar.
+  useEffect(() => {
+    if (!open || !blockRef.current) return;
+    const r = blockRef.current.getBoundingClientRect();
+    const POPOVER_H = 200; // conservative estimate
+    const spaceBelow = window.innerHeight - r.bottom;
+    setDropAbove(spaceBelow < POPOVER_H);
+  }, [open]);
+
+  // Close on Escape.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  async function runAction(fn: () => Promise<unknown>) {
+    setPending(true);
+    try {
+      await fn();
+      setOpen(false);
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div
       className="absolute z-10 pl-1 pr-1"
@@ -403,12 +451,14 @@ function ItemBlock({ item }: { item: PlacedItem }) {
       }}
     >
       <button
+        ref={blockRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className={cn(
           "group flex h-full w-full flex-col items-stretch overflow-hidden rounded-[10px] px-2 py-1.5 text-left",
           "transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-[0_6px_16px_-4px_rgba(0,0,0,0.18)]",
-          "ring-1 ring-black/[0.04]"
+          "ring-1 ring-black/[0.04]",
         )}
         style={{
           background: ENTITY_BG[item.kind],
@@ -434,34 +484,134 @@ function ItemBlock({ item }: { item: PlacedItem }) {
       {open && (
         <div
           className={cn(
-            "absolute z-40 mt-1 w-64 rounded-2xl border border-[var(--hairline)] bg-card p-4 text-card-foreground shadow-xl",
-            leftPct > 50 ? "right-0" : "left-0"
+            "absolute z-40 w-64 rounded-2xl border border-[var(--hairline)] bg-card p-4 text-card-foreground shadow-xl",
+            leftPct > 50 ? "right-0" : "left-0",
           )}
-          style={{ top: height + 4 }}
+          style={
+            dropAbove
+              ? { bottom: height + 4 }
+              : { top: height + 4 }
+          }
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            {item.kind} · {format(t, "EEE, MMM d · h:mma").toLowerCase()}
-          </div>
-          <div className="mt-2 text-[15px] font-medium leading-tight">{item.title}</div>
-          {item.category && (
-            <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              {item.category}
-            </div>
-          )}
-          {item.status && (
-            <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              status · {item.status}
-            </div>
-          )}
+          {/* Close affordance — top-right, quiet. */}
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Close"
+            className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
           >
-            close
+            <X className="h-3.5 w-3.5" />
           </button>
+
+          <div className="pr-6 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            {item.kind}
+            <span className="opacity-40"> · </span>
+            <span className="tabular-nums">
+              {format(t, "EEE, MMM d").toLowerCase()}
+            </span>
+            <span className="opacity-40"> · </span>
+            <span className="tabular-nums">
+              {format(t, "h:mma").toLowerCase()}
+            </span>
+          </div>
+          <div className="mt-2 text-[15px] font-medium leading-tight">
+            {item.title}
+          </div>
+          {(item.category || item.priority) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              {item.category && <span>{item.category}</span>}
+              {item.priority && (
+                <>
+                  {item.category && <span className="opacity-40">·</span>}
+                  <span>{item.priority}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Inline action row — the previous popover was a dead-end with
+              just a "close" button. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-[var(--hairline)] pt-3">
+            {item.kind === "task" && (
+              <PopoverAction
+                primary
+                pending={pending}
+                onClick={() => runAction(() => toggleTaskComplete(item.id))}
+              >
+                <Check className="h-3 w-3" strokeWidth={3} />
+                done
+              </PopoverAction>
+            )}
+            {item.kind === "routine" && (
+              <PopoverAction
+                primary
+                pending={pending}
+                onClick={() => runAction(() => toggleRoutineToday(item.id))}
+              >
+                <Check className="h-3 w-3" strokeWidth={3} />
+                done today
+              </PopoverAction>
+            )}
+            {item.kind === "reminder" && (
+              <>
+                <PopoverAction
+                  primary
+                  pending={pending}
+                  onClick={() => runAction(() => dismissReminderInline(item.id))}
+                >
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                  dismiss
+                </PopoverAction>
+                <PopoverAction
+                  pending={pending}
+                  onClick={() => runAction(() => snoozeReminderInline(item.id, 60))}
+                >
+                  <Clock className="h-3 w-3" strokeWidth={2.5} />
+                  +1h
+                </PopoverAction>
+              </>
+            )}
+            {item.kind === "activity" && (
+              <PopoverAction
+                pending={pending}
+                onClick={() => runAction(() => deleteActivityInline(item.id))}
+              >
+                <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
+                undo
+              </PopoverAction>
+            )}
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function PopoverAction({
+  children,
+  primary,
+  pending,
+  onClick,
+}: {
+  children: React.ReactNode;
+  primary?: boolean;
+  pending?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 font-mono text-[10.5px] uppercase tracking-[0.14em] transition-colors disabled:opacity-50",
+        primary
+          ? "bg-foreground text-background hover:bg-foreground/85"
+          : "bg-foreground/8 text-foreground hover:bg-foreground/15",
+      )}
+      style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+    >
+      {pending ? "…" : children}
+    </button>
   );
 }

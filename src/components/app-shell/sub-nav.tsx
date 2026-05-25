@@ -16,21 +16,20 @@ interface SubLink {
   match: (p: string) => boolean;
 }
 
+// Sub-nav surfaces only TOP-LEVEL areas that aren't already covered by
+// the chip row inside /sheet. Tasks/routines used to live here, but they
+// duplicate the kind-filter chips on /sheet — that was the redundancy the
+// user kept tripping over. They're still reachable by deep link from row
+// hover actions and from /sheet?filter=tasks, etc.
 const SUB_LINKS: SubLink[] = [
   {
     label: "sheet",
     href: "/sheet",
-    match: (p) => p === "/sheet" || p.startsWith("/sheet/"),
-  },
-  {
-    label: "tasks",
-    href: "/tasks",
-    match: (p) => p === "/tasks" || p.startsWith("/tasks/"),
-  },
-  {
-    label: "routines",
-    href: "/routines",
     match: (p) =>
+      p === "/sheet" ||
+      p.startsWith("/sheet/") ||
+      p === "/tasks" ||
+      p.startsWith("/tasks/") ||
       p === "/routines" ||
       p.startsWith("/routines/") ||
       p.startsWith("/trackers/"),

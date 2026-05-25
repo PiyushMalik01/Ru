@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import {
   fetchTasks,
   fetchRoutinesWithToday,
-  fetchSheetTaskStats,
 } from "@/lib/queries/dashboard";
 import { listWorkspaces } from "@/lib/queries/workspace";
 import { fetchCalendarItems } from "@/lib/queries/calendar";
@@ -30,7 +29,6 @@ import type { ItemKind, ItemStatus } from "@/components/app-shell/primitives";
 
 export const dynamic = "force-dynamic";
 
-// Next.js 16 — searchParams is async.
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function parseFilter(v: string | string[] | undefined): SheetFilter {
@@ -51,7 +49,7 @@ function parseStatus(v: string | string[] | undefined): SheetStatusFilter {
 function parseSort(v: string | string[] | undefined): SortKey {
   const s = Array.isArray(v) ? v[0] : v;
   if (s === "title" || s === "status") return s;
-  return "due_at"; // natural default
+  return "due_at";
 }
 function parseDir(v: string | string[] | undefined): SortDir {
   const s = Array.isArray(v) ? v[0] : v;
@@ -64,11 +62,7 @@ function parseRange(v: string | string[] | undefined): "week" | "day" {
 function parseAnchor(v: string | string[] | undefined): Date {
   const s = Array.isArray(v) ? v[0] : v;
   if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    try {
-      return parseISO(s);
-    } catch {
-      /* fall through */
-    }
+    try { return parseISO(s); } catch { /* fall through */ }
   }
   return new Date();
 }
@@ -77,7 +71,7 @@ function startOfWeekMon(d: Date): Date {
   const out = new Date(d);
   out.setHours(0, 0, 0, 0);
   const dow = out.getDay();
-  const delta = dow === 0 ? -6 : 1 - dow; // shift to Monday
+  const delta = dow === 0 ? -6 : 1 - dow;
   out.setDate(out.getDate() + delta);
   return out;
 }
@@ -94,16 +88,26 @@ export default async function SheetPage({
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  const filter = parseFilter(sp.filter);
   const view = parseView(sp.view);
   const range = parseRange(sp.range);
   const anchor = parseAnchor(sp.date);
-  const status = parseStatus(sp.status);
+
+  // Sort + status only mean anything in the table view. Don't read them
+  // from the URL on calendar/timeline — the route handler can still receive
+  // them (e.g. from old bookmarks), but they're ignored, just as the views
+  // ignore them. The view-switcher links also strip them on click.
+  const filter = parseFilter(sp.filter);
+  let status: SheetStatusFilter =
+    view === "table" ? parseStatus(sp.status) : "all";
   const sortKey = parseSort(sp.sort);
   const sortDir = parseDir(sp.dir);
 
-  // ── CALENDAR view branches off early. It needs a different data shape and
-  // doesn't share the row-list logic at all.
+  // Status implies tasks. If the URL carries both `filter=routines` and
+  // `status=open`, the previous behaviour silently showed an empty page.
+  // Now we coerce to a sensible state instead.
+  const effectiveFilter: SheetFilter =
+    status !== "all" && filter !== "all" && filter !== "tasks" ? "tasks" : filter;
+
   if (view === "calendar") {
     const from = range === "day" ? new Date(anchor) : startOfWeekMon(anchor);
     from.setHours(0, 0, 0, 0);
@@ -114,9 +118,9 @@ export default async function SheetPage({
     const nowMs = Date.now();
 
     return (
-      <div className="mx-auto w-full max-w-6xl px-6 pt-10 pb-32">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
         <SheetMasthead />
-        <div className="mt-10">
+        <div className="mt-6 sm:mt-8">
           <SheetControls
             totalCount={items.length}
             activeFilter={filter}
@@ -128,35 +132,37 @@ export default async function SheetPage({
     );
   }
 
-  // ── TIMELINE view: plans across dates.
   if (view === "timeline") {
     const plans = await fetchTimelinePlans(supabase, user.id);
+    // Hide zero-item plans — they're noise on the gantt; the user can still
+    // see them on /plans.
+    const visible = plans.filter((p) => p.itemCount > 0);
     const nowMs = Date.now();
     return (
-      <div className="mx-auto w-full max-w-6xl px-6 pt-10 pb-32">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
         <SheetMasthead />
-        <div className="mt-10">
+        <div className="mt-6 sm:mt-8">
           <SheetControls
-            totalCount={plans.length}
+            totalCount={visible.length}
             activeFilter={filter}
             activeView={view}
           />
         </div>
-        <TimelineView plans={plans} nowMs={nowMs} />
+        <TimelineView plans={visible} nowMs={nowMs} />
       </div>
     );
   }
 
-  // ── Default: TABLE view (the canonical lens).
-  // When the user has selected "completed" from the stats strip we also need
-  // completed tasks in the row set; otherwise the table can show only the
-  // open lifecycle states (matching the previous behaviour).
+  // ── TABLE view ──────────────────────────────────────────────────────
+  // When the user has selected "completed" we also need completed tasks
+  // in the row set; otherwise the table can show only the open lifecycle
+  // states.
   const taskStatuses =
     status === "completed"
       ? (["pending", "in_progress", "missed", "completed"] as const)
       : (["pending", "in_progress", "missed"] as const);
 
-  const [tasks, routines, workspaces, activitiesRes, remindersRes, taskStats] = await Promise.all([
+  const [tasks, routines, workspaces, activitiesRes, remindersRes] = await Promise.all([
     fetchTasks(supabase, user.id, { statuses: [...taskStatuses] }),
     fetchRoutinesWithToday(supabase, user.id),
     listWorkspaces(supabase, user.id),
@@ -174,7 +180,6 @@ export default async function SheetPage({
       .eq("status", "pending")
       .order("remind_at", { ascending: true })
       .limit(50),
-    fetchSheetTaskStats(supabase, user.id),
   ]);
 
   const planById = new Map(workspaces.map((w) => [w.id, w.title]));
@@ -251,11 +256,16 @@ export default async function SheetPage({
     });
   }
 
+  // ── Group identical reminders by (kind, title, hour-bucket) so the
+  // user sees one row with a ×N badge instead of five rows of "Go to gym
+  // 6:00 am". Tasks/routines/activities never dedup — only reminders, which
+  // are the only entity that frequently gets seeded multiple times by
+  // recurrence + manual recreation.
+  const dedupedRows = dedupRows(rows);
+
   // ── Filter pipeline.
-  // 1. kind filter (from SheetControls) — narrows by entity type.
-  // 2. status filter (from SheetStatsStrip) — narrows by task lifecycle.
-  //    Status only refers to tasks; selecting any task-status implicitly
-  //    restricts the table to task rows.
+  // 1. kind filter (effectiveFilter — already reconciled with status)
+  // 2. status filter (only applies to tasks)
   const startOfTodayMs = (() => {
     const d = new Date(nowMs);
     d.setHours(0, 0, 0, 0);
@@ -264,19 +274,17 @@ export default async function SheetPage({
   const startOfTomorrowMs = startOfTodayMs + 86400_000;
   const weekAgoMs = nowMs - 7 * 86400_000;
 
-  let working = rows;
-  if (filter !== "all") {
+  let working = dedupedRows;
+  if (effectiveFilter !== "all") {
     working = working.filter((r) => {
-      if (filter === "tasks")     return r.kind === "task";
-      if (filter === "routines")  return r.kind === "routine";
-      if (filter === "logs")      return r.kind === "activity";
-      if (filter === "reminders") return r.kind === "reminder";
+      if (effectiveFilter === "tasks")     return r.kind === "task";
+      if (effectiveFilter === "routines")  return r.kind === "routine";
+      if (effectiveFilter === "logs")      return r.kind === "activity";
+      if (effectiveFilter === "reminders") return r.kind === "reminder";
       return true;
     });
   }
   if (status !== "all") {
-    // Find the underlying task row for status logic — we need due_at and
-    // completed_at, which we have on `tasks` but not on SheetRowData.
     const taskById = new Map(tasks.map((t) => [t.id, t]));
     working = working.filter((r) => {
       if (r.kind !== "task") return false;
@@ -301,8 +309,7 @@ export default async function SheetPage({
     });
   }
 
-  // ── Sort. Stable order: secondary key is the original row order so equal
-  //    keys (e.g. two tasks with no due_at) keep the upstream ordering.
+  // ── Sort. Stable secondary key = original order.
   const decorated = working.map((r, i) => ({ r, i }));
   decorated.sort((a, b) => {
     const cmp = compareRows(a.r, b.r, sortKey);
@@ -312,63 +319,105 @@ export default async function SheetPage({
   const sorted = decorated.map((x) => x.r);
   sorted.forEach((r, i) => (r.index = i + 1));
 
-  const counts = {
-    tasks:     rows.filter((r) => r.kind === "task").length,
-    routines:  rows.filter((r) => r.kind === "routine").length,
-    reminders: rows.filter((r) => r.kind === "reminder").length,
-    logs:      rows.filter((r) => r.kind === "activity").length,
-  };
+  // ── Stats counts.
+  // Derived from the SAME task data the table uses so the strip never
+  // contradicts the table ("done · 7d: 01" but zero visible rows).
+  const taskCounts = computeTaskCounts(
+    tasks,
+    nowMs,
+    startOfTodayMs,
+    startOfTomorrowMs,
+    weekAgoMs,
+  );
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 pt-10 pb-32">
-      <SheetMasthead />
+    <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
+      <SheetMasthead totalCount={sorted.length} />
 
-      <div className="mt-8">
-        <SheetStatsStrip
-          counts={{
-            open: taskStats.open,
-            dueToday: taskStats.dueToday,
-            completedWeek: taskStats.completedWeek,
-            overdue: taskStats.overdue,
-          }}
-          active={status}
-        />
+      <div className="mt-6 sm:mt-8">
+        <SheetStatsStrip counts={taskCounts} active={status} />
       </div>
 
-      <div className="mt-10">
+      <div className="mt-8 sm:mt-10">
         <SheetControls
           totalCount={sorted.length}
-          activeFilter={filter}
+          activeFilter={effectiveFilter}
           activeView={view}
         />
       </div>
 
-      {sorted.length === 0 ? (
-        <EmptyState filter={filter} status={status} />
-      ) : (
-        <>
+      <div className="mt-4">
+        {sorted.length === 0 ? (
+          <EmptyState filter={effectiveFilter} status={status} />
+        ) : (
           <SheetTable
             rows={sorted}
             nowMs={nowMs}
             sort={{ key: sortKey, dir: sortDir }}
           />
-
-          <div className="mt-6 flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground/60">
-            <span>{sorted.length.toString().padStart(3, "0")} visible</span>
-            <span className="text-muted-foreground/30">·</span>
-            <span>○ {counts.tasks} tasks</span>
-            <span>⟳ {counts.routines} routines</span>
-            <span>△ {counts.reminders} reminders</span>
-            <span>⊕ {counts.logs} logs</span>
-          </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Row comparator. Null-aware: rows without a sort value sink to the bottom
-//    regardless of direction (a printed index reads better that way).
+/**
+ * Visually collapse duplicate reminders into a single row with a ×N badge.
+ * Only reminders dedup — they're the only entity that gets seeded by
+ * recurrence into many DB rows the user thinks of as "one thing".
+ */
+function dedupRows(rows: SheetRowData[]): SheetRowData[] {
+  const out: SheetRowData[] = [];
+  const seen = new Map<string, SheetRowData>();
+  for (const r of rows) {
+    if (r.kind !== "reminder") {
+      out.push(r);
+      continue;
+    }
+    const hourBucket = r.whenIso
+      ? new Date(r.whenIso).toISOString().slice(0, 13) // YYYY-MM-DDTHH
+      : "no-time";
+    const key = `${r.title.trim().toLowerCase()}|${hourBucket}`;
+    const prev = seen.get(key);
+    if (prev) {
+      prev.duplicateCount = (prev.duplicateCount ?? 1) + 1;
+    } else {
+      const copy = { ...r, duplicateCount: 1 };
+      seen.set(key, copy);
+      out.push(copy);
+    }
+  }
+  return out;
+}
+
+function computeTaskCounts(
+  tasks: { status: string; due_at: string | null; completed_at: string | null }[],
+  nowMs: number,
+  startOfTodayMs: number,
+  startOfTomorrowMs: number,
+  weekAgoMs: number,
+) {
+  let open = 0;
+  let dueToday = 0;
+  let completedWeek = 0;
+  let overdue = 0;
+  for (const t of tasks) {
+    const isOpen = t.status === "pending" || t.status === "in_progress";
+    if (isOpen) open++;
+    if (t.status === "completed" && t.completed_at) {
+      if (new Date(t.completed_at).getTime() >= weekAgoMs) completedWeek++;
+    }
+    if (t.due_at && t.status !== "completed") {
+      const d = new Date(t.due_at).getTime();
+      if (d >= startOfTodayMs && d < startOfTomorrowMs) dueToday++;
+      if (d < nowMs) overdue++;
+    } else if (t.status === "missed") {
+      overdue++;
+    }
+  }
+  return { open, dueToday, completedWeek, overdue };
+}
+
 function compareRows(a: SheetRowData, b: SheetRowData, key: SortKey): number {
   if (key === "title") {
     return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
@@ -381,7 +430,6 @@ function compareRows(a: SheetRowData, b: SheetRowData, key: SortKey): number {
     if (bv === null) return -1;
     return av - bv;
   }
-  // status: ordinal so the comparator is stable across kinds.
   const order: Record<string, number> = {
     in_progress: 0,
     missed: 1,
@@ -393,19 +441,19 @@ function compareRows(a: SheetRowData, b: SheetRowData, key: SortKey): number {
   return (order[a.status] ?? 99) - (order[b.status] ?? 99);
 }
 
-function SheetMasthead() {
+function SheetMasthead({ totalCount }: { totalCount?: number } = {}) {
   return (
     <header className="flex items-baseline justify-between gap-4">
-      <div>
-        <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
-          sheet
-        </div>
-        <h1 className="h-page-sm mt-3 lowercase">
-          every thread, in one column
-        </h1>
-      </div>
-      <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50 sm:block">
-        tasks · routines · reminders · logs
+      <div className="flex items-baseline gap-3">
+        <h1 className="h-page-sm lowercase">sheet</h1>
+        {typeof totalCount === "number" && (
+          <span
+            className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70 tabular-nums"
+            aria-label={`${totalCount} items`}
+          >
+            · {totalCount} item{totalCount === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
     </header>
   );
@@ -418,8 +466,6 @@ function EmptyState({
   filter: SheetFilter;
   status: SheetStatusFilter;
 }) {
-  // Status filter takes precedence because the user just clicked it — the
-  // message should answer "why is this empty?" in the user's own framing.
   const msg =
     status === "open"
       ? "Nothing open. The page is clear."
@@ -439,9 +485,9 @@ function EmptyState({
                     ? "No pending reminders."
                     : "The sheet is empty.";
   return (
-    <div className="mt-20 py-20 text-center">
+    <div className="rounded-2xl border border-dashed border-[var(--hairline)] py-20 text-center">
       <p
-        className="lowercase text-[22px] leading-[1.15] text-muted-foreground"
+        className="lowercase text-[20px] leading-[1.15] text-muted-foreground"
         style={{
           fontVariationSettings: "'wght' 540, 'wdth' 96",
           letterSpacing: "-0.015em",

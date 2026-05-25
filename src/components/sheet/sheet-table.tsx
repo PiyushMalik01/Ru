@@ -1,11 +1,7 @@
 "use client";
 
-// Sheet table — header row with sortable columns + the existing flat rows.
-//
-// Sort state is URL-driven (`?sort=title|due_at|status&dir=asc|desc`) so the
-// active state and table order survive reloads and copy-paste. Header cells
-// are typographic links, not buttons: the arrow lives in mono next to the
-// column name so the table reads as a printed index, not a spreadsheet.
+// Sheet "table" — actually a vertical stack of standalone cards now.
+// Header is a single calm row with the sort affordance.
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -15,66 +11,31 @@ import { SheetRow, type SheetRowData } from "./sheet-row";
 export type SortKey = "title" | "due_at" | "status";
 export type SortDir = "asc" | "desc";
 
-const GRID_TEMPLATE =
-  "40px 22px minmax(0,1fr) 138px 128px minmax(0,160px) 112px 72px";
+const SORT_LABELS: Record<SortKey, string> = {
+  due_at: "due / when",
+  title: "title",
+  status: "status",
+};
 
-function nextSortHref(
-  pathname: string,
-  params: URLSearchParams,
-  key: SortKey,
-  current: { key: SortKey; dir: SortDir }
-): string {
+function setParam(params: URLSearchParams, key: string, value: string | null): string {
   const out = new URLSearchParams(params);
-  // Clicking the active column toggles direction. Clicking another column
-  // resets direction to the column's natural default (asc for title/due,
-  // desc for status so "done" doesn't surface first).
-  let dir: SortDir;
-  if (current.key === key) {
-    dir = current.dir === "asc" ? "desc" : "asc";
-  } else {
-    dir = key === "status" ? "desc" : "asc";
-  }
-  out.set("sort", key);
-  if (dir === "asc") out.delete("dir");
-  else out.set("dir", dir);
+  if (value === null) out.delete(key);
+  else out.set(key, value);
   const s = out.toString();
-  return `${pathname}${s ? `?${s}` : ""}`;
+  return s ? `?${s}` : "";
 }
 
-function SortHeader({
-  label,
-  k,
-  current,
-}: {
-  label: string;
-  k: SortKey;
-  current: { key: SortKey; dir: SortDir };
-}) {
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const isActive = current.key === k;
-  const arrow = isActive ? (current.dir === "asc" ? "↑" : "↓") : "·";
-
-  return (
-    <Link
-      href={nextSortHref(pathname, params, k, current)}
-      className={cn(
-        "inline-flex items-center gap-1.5 transition-colors",
-        isActive ? "text-foreground" : "hover:text-foreground",
-      )}
-    >
-      <span>{label}</span>
-      <span
-        className={cn(
-          "tabular-nums",
-          isActive ? "opacity-100" : "opacity-30",
-        )}
-        aria-hidden
-      >
-        {arrow}
-      </span>
-    </Link>
-  );
+function nextDirHref(
+  pathname: string,
+  params: URLSearchParams,
+  current: { key: SortKey; dir: SortDir },
+): string {
+  const out = new URLSearchParams(params);
+  out.set("sort", current.key);
+  if (current.dir === "asc") out.set("dir", "desc");
+  else out.delete("dir");
+  const s = out.toString();
+  return `${pathname}${s ? `?${s}` : ""}`;
 }
 
 interface Props {
@@ -84,27 +45,51 @@ interface Props {
 }
 
 export function SheetTable({ rows, nowMs, sort }: Props) {
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const dirArrow = sort.dir === "asc" ? "↑" : "↓";
+
   return (
-    <>
-      <div
-        className="sticky top-12 z-20 grid items-center gap-4 bg-background pl-5 pr-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 border-b border-[var(--hairline)]"
-        style={{ gridTemplateColumns: GRID_TEMPLATE }}
-      >
-        <span className="text-muted-foreground/30">№</span>
-        <span />
-        <SortHeader label="title" k="title" current={sort} />
-        <SortHeader label="status" k="status" current={sort} />
-        <SortHeader label="due · when" k="due_at" current={sort} />
-        <span>plan</span>
-        <span>meta</span>
-        <span />
+    <div className="flex flex-col gap-2">
+      {/* Sort affordance — discreet, single line */}
+      <div className="flex items-center justify-between gap-3 pb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+        <div className="flex items-center gap-2">
+          <span className="opacity-60">sort</span>
+          {(Object.keys(SORT_LABELS) as SortKey[]).map((k, i) => {
+            const isActive = sort.key === k;
+            return (
+              <span key={k} className="flex items-center gap-2">
+                {i > 0 && <span className="opacity-30">·</span>}
+                <Link
+                  href={`${pathname}${setParam(params, "sort", k === "due_at" ? null : k)}`}
+                  aria-current={isActive ? "true" : undefined}
+                  className={cn(
+                    "transition-colors hover:text-foreground",
+                    isActive && "text-foreground",
+                  )}
+                  style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+                >
+                  {SORT_LABELS[k]}
+                </Link>
+              </span>
+            );
+          })}
+          <Link
+            href={nextDirHref(pathname, params, sort)}
+            aria-label={`Reverse sort direction (currently ${sort.dir})`}
+            className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-foreground/10"
+          >
+            {dirArrow}
+          </Link>
+        </div>
       </div>
 
-      <div>
+      {/* The card stack */}
+      <div className="flex flex-col gap-1.5">
         {rows.map((r) => (
           <SheetRow key={`${r.kind}-${r.id}`} row={r} nowMs={nowMs} />
         ))}
       </div>
-    </>
+    </div>
   );
 }
