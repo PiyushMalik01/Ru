@@ -1,15 +1,34 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Mic, Square, ArrowUp } from "lucide-react";
+import { Mic, Square, ArrowUp, Check, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useChatStore, isTTSPlaying } from "@/lib/stores/chat-store";
 import { startSTT, type STTHandle } from "@/lib/voice/stt";
 import { VoiceConversation } from "@/components/chat/voice-conversation";
 import { usePushToTalk } from "@/lib/hooks/use-push-to-talk";
+import {
+  isLikelyScattered,
+  type SanityReason,
+} from "@/lib/voice/transcript-sanity";
 import { VoiceToggle } from "./voice-toggle";
 import { MiniOrb } from "./mini-orb";
+
+interface PendingConfirm {
+  text: string;
+  reason: SanityReason;
+}
+
+function reasonLabel(reason: SanityReason): string {
+  switch (reason) {
+    case "empty":           return "nothing came through";
+    case "too-short":       return "did i get that?";
+    case "single-syllable": return "did i get that?";
+    case "repetition":      return "did you mean to repeat?";
+    case "low-content":     return "did i get that?";
+  }
+}
 
 type PillState = "idle" | "typing" | "listening";
 
@@ -67,6 +86,28 @@ export function FloatingPill() {
     [sendText]
   );
 
+  // Sanity-checked submit for voice-derived transcripts. If the text looks
+  // scattered (mic noise, single short token, repetition, low-content
+  // soup), surface a tick/cross toast instead of firing the LLM on
+  // garbage. Typed input goes through `submit` directly — no gate.
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const submitVoice = useCallback(
+    (text: string) => {
+      const t = text.trim();
+      if (!t) return;
+      const sanity = isLikelyScattered(t);
+      if (!sanity.ok && sanity.reason) {
+        setPendingConfirm({ text: t, reason: sanity.reason });
+        setInput("");
+        finalBufRef.current = "";
+        setState("idle");
+        return;
+      }
+      submit(t);
+    },
+    [submit]
+  );
+
   async function handleMicClick() {
     // Voice-only mode → open the full conversation orb instead of single-shot mic.
     if (voiceMode) {
@@ -78,7 +119,7 @@ export function FloatingPill() {
     if (state === "listening") {
       stopSTT();
       if (finalBufRef.current.trim()) {
-        submit(finalBufRef.current);
+        submitVoice(finalBufRef.current);
       }
       setState("idle");
       return;
@@ -146,7 +187,8 @@ export function FloatingPill() {
       window.setTimeout(() => {
         const text = (input.trim() || finalBufRef.current.trim()).trim();
         if (text) {
-          submit(text);
+          // Voice-derived → gate behind sanity check.
+          submitVoice(text);
         } else {
           setState("idle");
         }
@@ -190,11 +232,53 @@ export function FloatingPill() {
           // On the chat page only, the workspace panel takes ~32% on lg+. We
           // restrict the pill's right edge to the chat column so it stays
           // centered over the conversation, not the full viewport.
-          "fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 transition-opacity",
+          "fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 transition-opacity",
           onChat && "lg:right-[32%]",
           orbOpen && "pointer-events-none opacity-0",
         )}
       >
+        {pendingConfirm && (
+          <div
+            role="dialog"
+            aria-label="Confirm what was heard"
+            className="flex max-w-xl items-center gap-2 rounded-full border border-[var(--hairline-strong)] bg-[color:var(--card)]/95 px-3 py-2 shadow-[0_10px_28px_-12px_rgba(0,0,0,0.28)] backdrop-blur-xl"
+          >
+            <span
+              className="shrink-0 rounded-full bg-[var(--secondary)] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+              style={{ fontVariationSettings: "'wght' 620, 'wdth' 100" }}
+            >
+              {reasonLabel(pendingConfirm.reason)}
+            </span>
+            <span
+              className="min-w-0 flex-1 truncate text-[13.5px] italic text-foreground"
+              style={{ fontVariationSettings: "'wght' 460, 'wdth' 96" }}
+            >
+              &ldquo;{pendingConfirm.text}&rdquo;
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const t = pendingConfirm.text;
+                setPendingConfirm(null);
+                submit(t);
+              }}
+              aria-label="Send anyway"
+              title="Send anyway"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-[1.05]"
+            >
+              <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingConfirm(null)}
+              aria-label="Discard"
+              title="Discard"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-[var(--secondary)] hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+            </button>
+          </div>
+        )}
         {voiceMode ? (
           // Collapsed pill — voice mode. The orb is the affordance; tap it to
           // open the full conversation. Toggle stays visible so the user can

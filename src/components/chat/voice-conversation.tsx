@@ -33,6 +33,8 @@ import {
   type VoiceDebugSignals,
 } from "./voice-debug-panel";
 
+import { isLikelyScattered } from "@/lib/voice/transcript-sanity";
+
 // Phrases the user can say to end the conversation. Match case-insensitively
 // on the full final transcript, after light normalization.
 const STOP_PHRASES = [
@@ -81,6 +83,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
   const ruClear = useRuCompanion((s) => s.clear);
 
   const [transcript, setTranscript] = useState("");
+  const [notHeard, setNotHeard] = useState(false);
   const [phase, setPhase] = useState<VoicePhase>("warming");
   const [debugSignals, setDebugSignals] = useState<VoiceDebugSignals>({
     phase: "warming",
@@ -494,6 +497,22 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       handleClose();
       return;
     }
+
+    // Sanity gate — drop scattered transcripts (background noise, single
+    // short tokens, repetition) before they reach the LLM + TTS. Cancel
+    // any speculative reply that was kicked off on eager_eot. Surface a
+    // brief "didn't catch that" message so the user knows the turn was
+    // dropped, then keep listening.
+    const sanity = isLikelyScattered(text);
+    if (!sanity.ok) {
+      if (speculativeRef.current) {
+        speculativeRef.current.cancel();
+        speculativeRef.current = null;
+      }
+      setNotHeard(true);
+      window.setTimeout(() => setNotHeard(false), 1800);
+      return;
+    }
     // Snapshot the last ~10s of mic PCM BEFORE tearing down Flux — the
     // ring buffer lives on the FluxHandle and disappears with stop().
     const pcm = fluxRef.current?.snapshotPCM();
@@ -648,7 +667,7 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
       <div className="mx-auto flex max-w-3xl flex-col items-center gap-2">
         {/* Live transcript while user is talking. */}
         <AnimatePresence>
-          {transcript && (
+          {transcript && !notHeard && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -658,6 +677,25 @@ export function VoiceConversation({ onClose }: { onClose: () => void }) {
               style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
             >
               {transcript}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* "Didn't catch that" — sanity-drop feedback. Mounts briefly so the
+            user knows their last utterance was dropped (background noise,
+            single mumbled word, etc.) and they should repeat. */}
+        <AnimatePresence>
+          {notHeard && (
+            <motion.div
+              key="not-heard"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+              className="pointer-events-none rounded-full border border-border bg-card/95 px-3 py-1.5 text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground shadow-md backdrop-blur-sm"
+              style={{ fontVariationSettings: "'wght' 620, 'wdth' 100" }}
+            >
+              didn&rsquo;t catch that — try again
             </motion.div>
           )}
         </AnimatePresence>
