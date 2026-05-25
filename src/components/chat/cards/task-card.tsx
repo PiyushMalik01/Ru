@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNowTick } from "@/lib/hooks/use-now-tick";
 import {
   completeTaskInline,
   reopenTaskInline,
@@ -34,8 +35,13 @@ export function TaskCard({ data }: { data: TaskCardData }) {
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  useNowTick(); // re-evaluate overdue every minute
 
   const completed = status === "completed";
+  const overdue =
+    !completed &&
+    !!data.due_at &&
+    new Date(data.due_at).getTime() < Date.now();
 
   function toggle() {
     setError(null);
@@ -53,16 +59,20 @@ export function TaskCard({ data }: { data: TaskCardData }) {
 
   return (
     <div
-      className="block w-full overflow-hidden rounded-2xl"
+      className={cn(
+        "block w-full overflow-hidden rounded-2xl transition-[filter] duration-300",
+        overdue && "saturate-[0.78]",
+      )}
       style={{
         background: "var(--entity-task)",
         color: "var(--entity-task-fg)",
       }}
     >
-      <div className="flex items-center gap-3 px-5 pt-4">
+      <div className={cn("flex items-center gap-3 px-5 pt-4", overdue && "opacity-80")}>
         <CardLabel>task</CardLabel>
         <span className="opacity-40">·</span>
         <CardMeta>{data.priority ?? "no priority"}</CardMeta>
+        {overdue && <StaleMark>overdue</StaleMark>}
         {data.due_at && (
           <span className="ml-auto text-[11px] tabular-nums opacity-85" style={meta}>
             {formatDue(data.due_at)}
@@ -72,8 +82,9 @@ export function TaskCard({ data }: { data: TaskCardData }) {
       <div className="flex items-start gap-3 px-5 pb-3 pt-2">
         <div
           className={cn(
-            "flex-1 text-[15px] leading-snug",
+            "flex-1 text-[15px] leading-snug transition-opacity",
             completed && "line-through opacity-60",
+            overdue && "opacity-75",
           )}
           style={{ fontVariationSettings: "'wght' 540, 'wdth' 96" }}
         >
@@ -184,5 +195,23 @@ export function ActionError({ children }: { children: React.ReactNode }) {
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * Small uppercase pill that appears on stale cards (overdue tasks,
+ * missed reminders, routines past their scheduled time). Lives in the
+ * card head row next to the existing label/meta. Dark-on-tile pill so it
+ * reads as a quiet flag, not a button.
+ */
+export function StaleMark({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-black/22 px-1.5 py-[2px] text-[9.5px] uppercase tracking-[0.14em]"
+      style={{ fontVariationSettings: "'wght' 700, 'wdth' 100" }}
+    >
+      <span aria-hidden className="inline-block h-1 w-1 rounded-full bg-current opacity-80" />
+      {children}
+    </span>
   );
 }

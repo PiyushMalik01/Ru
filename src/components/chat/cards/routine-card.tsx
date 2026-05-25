@@ -4,6 +4,10 @@ import { useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  useNowTick,
+  timeOfDayHasPassedToday,
+} from "@/lib/hooks/use-now-tick";
+import {
   completeRoutineInline,
   skipRoutineInline,
 } from "@/app/(app)/chat/card-actions";
@@ -14,6 +18,7 @@ import {
   PrimaryAction,
   SecondaryAction,
   ActionError,
+  StaleMark,
 } from "./task-card";
 
 export interface RoutineCardData {
@@ -37,9 +42,17 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  useNowTick();
 
   const streak = Math.max(0, data.streak ?? 0);
   const weekFilled = streak % 7 === 0 && streak > 0 ? 7 : streak % 7;
+
+  // Missed window: a scheduled time has passed today AND the user hasn't
+  // logged anything (done or skip) for it yet. The action buttons stay
+  // primary so the user can mark it done late or skip without re-typing.
+  const missedWindow =
+    today === "none" &&
+    timeOfDayHasPassedToday(data.time_of_day ?? null);
 
   function doDone() {
     setError(null);
@@ -60,13 +73,21 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
 
   return (
     <div
-      className="block w-full overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5"
+      className={cn(
+        "block w-full overflow-hidden rounded-2xl transition-[filter] duration-300 hover:-translate-y-0.5",
+        missedWindow && "saturate-[0.78]",
+      )}
       style={{
         background: "var(--entity-routine)",
         color: "var(--entity-routine-fg)",
       }}
     >
-      <div className="flex items-center gap-2 px-5 pt-4">
+      <div
+        className={cn(
+          "flex items-center gap-2 px-5 pt-4 transition-opacity",
+          missedWindow && "opacity-80",
+        )}
+      >
         <CardLabel>routine</CardLabel>
         {data.frequency && (
           <>
@@ -74,6 +95,7 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
             <CardMeta>{data.frequency}</CardMeta>
           </>
         )}
+        {missedWindow && <StaleMark>missed today</StaleMark>}
         {data.time_of_day && (
           <span
             className="ml-auto text-[11px] tabular-nums opacity-85"
@@ -84,7 +106,12 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
         )}
       </div>
 
-      <div className="flex items-end gap-4 px-5 pb-3 pt-2">
+      <div
+        className={cn(
+          "flex items-end gap-4 px-5 pb-3 pt-2 transition-opacity",
+          missedWindow && "opacity-80",
+        )}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span

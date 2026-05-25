@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Repeat, Bell, Check, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useNowTick } from "@/lib/hooks/use-now-tick";
 import {
   dismissReminderInline,
   snoozeReminderInline,
@@ -12,6 +14,7 @@ import {
   PrimaryAction,
   SecondaryAction,
   ActionError,
+  StaleMark,
 } from "./task-card";
 
 export interface ReminderCardData {
@@ -41,6 +44,12 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
   const [remindAt, setRemindAt] = useState<string | null | undefined>(data.remind_at);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  useNowTick();
+
+  const missed =
+    status === "pending" &&
+    !!remindAt &&
+    new Date(remindAt).getTime() < Date.now();
 
   function doDismiss() {
     setError(null);
@@ -61,15 +70,24 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
 
   return (
     <div
-      className="block w-full overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5"
+      className={cn(
+        "block w-full overflow-hidden rounded-2xl transition-[filter] duration-300 hover:-translate-y-0.5",
+        missed && "saturate-[0.78]",
+      )}
       style={{
         background: "var(--entity-reminder)",
         color: "var(--entity-reminder-fg)",
       }}
     >
-      <div className="flex items-center gap-3 px-5 py-4">
+      <div
+        className={cn(
+          "flex items-center gap-3 px-5 py-4 transition-opacity",
+          missed && "opacity-78",
+        )}
+      >
         <Bell className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <CardLabel>reminder</CardLabel>
+        {missed && <StaleMark>missed</StaleMark>}
         <div
           className="min-w-0 flex-1 truncate text-[14.5px] leading-tight"
           style={{ fontVariationSettings: "'wght' 580, 'wdth' 96" }}
