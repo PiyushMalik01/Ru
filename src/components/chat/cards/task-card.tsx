@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNowTick } from "@/lib/hooks/use-now-tick";
@@ -35,6 +36,7 @@ export function TaskCard({ data }: { data: TaskCardData }) {
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   useNowTick(); // re-evaluate overdue every minute
 
   const completed = status === "completed";
@@ -51,6 +53,9 @@ export function TaskCard({ data }: { data: TaskCardData }) {
       const res = await fn(data.id);
       if (res.ok && res.state) {
         setStatus(nextStatus);
+        // Refresh server-rendered surfaces (workspace panel, /today,
+        // sidebar counts) so they reflect the new state immediately.
+        router.refresh();
       } else {
         setError(res.error ?? "Couldn't update.");
       }

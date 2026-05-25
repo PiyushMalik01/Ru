@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Repeat, Bell, Check, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNowTick } from "@/lib/hooks/use-now-tick";
@@ -44,6 +45,7 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
   const [remindAt, setRemindAt] = useState<string | null | undefined>(data.remind_at);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   useNowTick();
 
   const missed =
@@ -55,16 +57,20 @@ export function ReminderCard({ data }: { data: ReminderCardData }) {
     setError(null);
     startTransition(async () => {
       const res = await dismissReminderInline(data.id);
-      if (res.ok) setStatus("dismissed");
-      else setError(res.error ?? "Couldn't dismiss.");
+      if (res.ok) {
+        setStatus("dismissed");
+        router.refresh();
+      } else setError(res.error ?? "Couldn't dismiss.");
     });
   }
   function doSnooze(minutes: number) {
     setError(null);
     startTransition(async () => {
       const res = await snoozeReminderInline(data.id, minutes);
-      if (res.ok && res.state) setRemindAt(res.state.remind_at);
-      else setError(res.error ?? "Couldn't snooze.");
+      if (res.ok && res.state) {
+        setRemindAt(res.state.remind_at);
+        router.refresh();
+      } else setError(res.error ?? "Couldn't snooze.");
     });
   }
 

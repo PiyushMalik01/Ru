@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -62,6 +63,7 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   useNowTick();
 
   const streak = Math.max(0, data.streak ?? 0);
@@ -79,16 +81,20 @@ export function RoutineCard({ data }: { data: RoutineCardData }) {
     setError(null);
     startTransition(async () => {
       const res = await completeRoutineInline(data.id);
-      if (res.ok) setToday("done");
-      else setError(res.error ?? "Couldn't mark done.");
+      if (res.ok) {
+        setToday("done");
+        router.refresh();
+      } else setError(res.error ?? "Couldn't mark done.");
     });
   }
   function doSkip() {
     setError(null);
     startTransition(async () => {
       const res = await skipRoutineInline(data.id);
-      if (res.ok) setToday("skipped");
-      else setError(res.error ?? "Couldn't skip.");
+      if (res.ok) {
+        setToday("skipped");
+        router.refresh();
+      } else setError(res.error ?? "Couldn't skip.");
     });
   }
 

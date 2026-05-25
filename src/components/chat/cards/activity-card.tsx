@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { RotateCcw, ArrowUpRight } from "lucide-react";
 import { useRelativeTime } from "@/lib/hooks/use-relative-time";
@@ -33,6 +34,7 @@ export function ActivityCard({ data }: { data: ActivityCardData }) {
   const [deleted, setDeleted] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const dur = formatDuration(data.duration_minutes);
   const rel = useRelativeTime(data.timestamp ?? null);
@@ -41,8 +43,10 @@ export function ActivityCard({ data }: { data: ActivityCardData }) {
     setError(null);
     startTransition(async () => {
       const res = await deleteActivityInline(data.id);
-      if (res.ok) setDeleted(true);
-      else setError(res.error ?? "Couldn't undo.");
+      if (res.ok) {
+        setDeleted(true);
+        router.refresh();
+      } else setError(res.error ?? "Couldn't undo.");
     });
   }
 

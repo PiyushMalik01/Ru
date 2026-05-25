@@ -7,9 +7,29 @@
  * for direct client invocation (no LLM in the loop). Returns a small
  * { ok, error?, state? } envelope the card can use to render the new
  * state inline without a full re-fetch.
+ *
+ * Every successful mutation calls revalidatePath on the chat routes so
+ * the right-side workspace panel — which reads from the DB at request
+ * time — picks up the new state on next refresh. The client component
+ * still optimistically updates its own pill ("done" / "removed") so the
+ * user sees instant feedback; the revalidate keeps server-rendered
+ * surfaces in sync.
  */
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+
+function bumpChat() {
+  // Both routes render the chat shell + workspace panel. Path revalidation
+  // is cheap enough to fire on every action.
+  try {
+    revalidatePath("/chat");
+    revalidatePath("/chat/[id]", "page");
+    revalidatePath("/today");
+  } catch {
+    /* path revalidate is best-effort */
+  }
+}
 
 interface ActionResult<T = undefined> {
   ok: boolean;
@@ -35,6 +55,7 @@ export async function completeTaskInline(taskId: string): Promise<ActionResult<{
     .eq("id", taskId)
     .eq("user_id", auth.userId);
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { status: "completed" } };
 }
 
@@ -47,6 +68,7 @@ export async function reopenTaskInline(taskId: string): Promise<ActionResult<{ s
     .eq("id", taskId)
     .eq("user_id", auth.userId);
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { status: "pending" } };
 }
 
@@ -69,6 +91,7 @@ export async function completeRoutineInline(
     { onConflict: "routine_id,logged_date" },
   );
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { logged: "done" } };
 }
 
@@ -89,6 +112,7 @@ export async function skipRoutineInline(
     { onConflict: "routine_id,logged_date" },
   );
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { logged: "skipped" } };
 }
 
@@ -105,6 +129,7 @@ export async function dismissReminderInline(
     .eq("id", reminderId)
     .eq("user_id", auth.userId);
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { status: "dismissed" } };
 }
 
@@ -133,6 +158,7 @@ export async function snoozeReminderInline(
     .eq("id", reminderId)
     .eq("user_id", auth.userId);
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { remind_at: nextIso } };
 }
 
@@ -149,6 +175,7 @@ export async function deleteActivityInline(
     .eq("id", activityId)
     .eq("user_id", auth.userId);
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { deleted: true } };
 }
 
@@ -165,5 +192,6 @@ export async function deleteTrackerEntryInline(
     .eq("id", entryId)
     .eq("user_id", auth.userId);
   if (error) return { ok: false, error: error.message };
+  bumpChat();
   return { ok: true, state: { deleted: true } };
 }

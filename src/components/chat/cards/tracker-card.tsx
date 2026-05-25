@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowUpRight, Plus, RotateCcw } from "lucide-react";
 import { trackerColor } from "@/lib/trackers/color";
@@ -137,6 +138,7 @@ function EntryView({ data }: { data: TrackerEntryCard }) {
   const [deleted, setDeleted] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const valueRows = data.fields
     .filter((f) => data.values[f.key] !== undefined)
@@ -160,8 +162,10 @@ function EntryView({ data }: { data: TrackerEntryCard }) {
     setError(null);
     startTransition(async () => {
       const res = await deleteTrackerEntryInline(data.entry_id!);
-      if (res.ok) setDeleted(true);
-      else setError(res.error ?? "Couldn't undo.");
+      if (res.ok) {
+        setDeleted(true);
+        router.refresh();
+      } else setError(res.error ?? "Couldn't undo.");
     });
   }
 
