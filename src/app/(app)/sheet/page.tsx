@@ -18,8 +18,8 @@ import {
   SheetStatsStrip,
   type SheetStatusFilter,
 } from "@/components/sheet/sheet-stats-strip";
-import { HeroBand } from "@/components/sheet/hero-band";
-import { SectionHead } from "@/components/sheet/section-head";
+import { HeroBand } from "@/components/editorial/hero-band";
+import { SectionHead } from "@/components/editorial/section-head";
 import { CalendarView } from "@/components/sheet/calendar-view";
 import { TimelineView } from "@/components/sheet/timeline-view";
 import type { ItemKind, ItemStatus } from "@/components/app-shell/primitives";

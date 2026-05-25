@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { fetchTodayBundle, listWorkspaces } from "@/lib/queries/workspace";
 import { fetchRoutinesWithToday } from "@/lib/queries/dashboard";
 import { composeStandfirst, firstNameFrom } from "@/lib/today-standfirst";
 import { NowMarker } from "@/components/app-shell/now-marker";
-import { Squiggle } from "@/components/app-shell/squiggle";
 import { BentoNow } from "@/components/today/bento-now";
 import { BentoStreak } from "@/components/today/bento-streak";
 import { BentoPlan, BentoPlanEmpty } from "@/components/today/bento-plan";
@@ -12,18 +12,9 @@ import { BentoWeek } from "@/components/today/bento-week";
 import { BentoUpNext } from "@/components/today/bento-up-next";
 import { BentoLog } from "@/components/today/bento-log";
 import { AnticipationSection } from "@/components/today/anticipation-section";
+import { HeroBand } from "@/components/editorial/hero-band";
 
 export const dynamic = "force-dynamic";
-
-function masthead(): { weekday: string; date: string; iso: string } {
-  const d = new Date();
-  const weekday = d.toLocaleDateString("en-US", { weekday: "long" }).toUpperCase();
-  const date = d
-    .toLocaleDateString("en-US", { day: "numeric", month: "short" })
-    .toUpperCase();
-  const iso = d.toISOString().slice(0, 10);
-  return { weekday, date, iso };
-}
 
 export default async function TodayPage() {
   const supabase = await createClient();
@@ -45,7 +36,6 @@ export default async function TodayPage() {
   const nowMs = Date.now();
   const nowEnd = nowMs + 60 * 60 * 1000;
 
-  // OPEN, due-soon items: in the next hour for "Now"
   const openTasks = bundle.tasksDueToday.filter((t) => t.status !== "completed");
   const nowTasks = openTasks.filter((t) => {
     if (!t.due_at) return false;
@@ -62,7 +52,6 @@ export default async function TodayPage() {
     return h >= todayHour && h <= todayHour + 1;
   });
 
-  // Compose NOW item set: routines tagged by time, tasks by due_at.
   const nowItems = [
     ...nowRoutines.map((r) => ({
       kind: "routine" as const,
@@ -79,7 +68,6 @@ export default async function TodayPage() {
     })),
   ];
 
-  // UP-NEXT: later tasks + later routines, ordered.
   const laterTasks = openTasks.filter((t) => !nowTasks.find((n) => n.id === t.id));
   const laterRoutines = upcomingRoutines.filter(
     (r) => !nowRoutines.find((n) => n.id === r.id),
@@ -100,7 +88,6 @@ export default async function TodayPage() {
     })),
   ];
 
-  // Counts for the WEEK tile — approximate using today's bundle.
   const taskCount = openTasks.length;
   const routineCount = upcomingRoutines.length;
   const weekCount = taskCount + routineCount;
@@ -112,44 +99,31 @@ export default async function TodayPage() {
     firstName,
   });
 
-  const head = masthead();
   const featuredPlan = workspaces[0] ?? null;
+  const todayLabel = format(new Date(nowMs), "EEE MMM d").toLowerCase();
+  const itemCount = taskCount + routineCount;
 
   const greeting = (() => {
     const h = new Date().getHours();
-    if (h < 5) return "Still up";
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    if (h < 21) return "Good evening";
-    return "Late tonight";
+    if (h < 5) return "still up";
+    if (h < 12) return "good morning";
+    if (h < 17) return "good afternoon";
+    if (h < 21) return "good evening";
+    return "late tonight";
   })();
 
-  return (
-    <div className="mx-auto w-full max-w-6xl px-6 pt-8 pb-32">
-      {/* Greeting masthead — chunky display greeting on the left, weekday + live clock on the right. */}
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <div
-            className="h-section lowercase"
-            style={{ fontVariationSettings: "'wght' 720, 'wdth' 96, 'opsz' 26" }}
-          >
-            {greeting}
-            {firstName ? `, ${firstName.toLowerCase()}` : ""}
-          </div>
-          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-            {head.weekday} · {head.date}
-          </div>
-        </div>
-        <NowMarker />
-      </header>
+  const title = firstName
+    ? `${greeting}, ${firstName.toLowerCase()}.`
+    : `${greeting}.`;
 
-      {/* Standfirst — chunky lowercase Bricolage anchors the page. */}
-      <div className="mt-10 max-w-3xl">
-        <h1 className="h-page lowercase">
-          {standfirst.replace(/\.$/, "")}
-        </h1>
-        <Squiggle className="mt-5 text-muted-foreground" width={200} />
-      </div>
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-32 sm:px-6 sm:pt-10">
+      <HeroBand
+        eyebrow={`today · ${todayLabel} · ${itemCount} item${itemCount === 1 ? "" : "s"}`}
+        title={title}
+        subtitle={standfirst.replace(/\.$/, ".").toLowerCase()}
+        trailing={<NowMarker />}
+      />
 
       {/* Ru noticed — anticipation row. Renders nothing if no pending
           suggestions; takes precedence above the bento when it has content. */}
@@ -160,7 +134,7 @@ export default async function TodayPage() {
                                          PLAN
           UP NEXT (col-span-2)           LOG
       */}
-      <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
+      <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
         <BentoNow
           items={nowItems}
           nowMs={nowMs}
@@ -186,21 +160,14 @@ export default async function TodayPage() {
         <BentoLog items={bundle.recentActivities} nowMs={nowMs} />
       </div>
 
-      {/* This-week summary as a secondary row, beneath the bento. Single
-          insight tile — keeps the bento itself uncluttered. */}
-      <div className="mt-5">
+      {/* This-week summary as a secondary row, beneath the bento. */}
+      <div className="mt-3 md:mt-4">
         <BentoWeek
           count={weekCount}
           taskCount={taskCount}
           routineCount={routineCount}
         />
       </div>
-
-      {/* Colophon — print spread footer. */}
-      <footer className="mt-20 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-        <span>ru. — daily</span>
-        <span>vol · {head.iso}</span>
-      </footer>
     </div>
   );
 }
