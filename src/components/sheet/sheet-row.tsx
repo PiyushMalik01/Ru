@@ -1,35 +1,20 @@
 "use client";
 
-// SheetRow — a true mini-card per item. Borrowed from the chat-card
-// language but tuned for list density: light card background, strong
-// entity-color stripe on the left, mono labels, action chips.
+// SheetRow — modeled on the Flutter `_TaskRow` / `_ReminderRow` layout:
 //
-// Layout (one card):
+//   ▎  ○  •  Prepare for Science exam              WED 1:30PM
+//            high  · overdue
 //
-//   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-//   ┃▎▎  Prepare for Science exam        WED 1:30 PM  [done] ┃
-//   ┃▎▎  TASK · HIGH · OVERDUE                                ┃
-//   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-//
-// Rules:
-// - Each card is a standalone rounded-2xl block; cards never share a
-//   border. A small gap between them gives the list rhythm.
-// - The leading "stripe" is 5px of entity color. It runs the full card
-//   height so the eye locks onto a kind at a glance.
-// - Time/due is rendered in Fraunces tabular numerals when present — the
-//   single typographic moment that ties a row to the chat-card style.
-// - Inline actions ALWAYS visible on touch; hover-only on md+.
-// - Non-toggleable kinds render an inert glyph (not a disabled button).
+// Each row sits inside a SectionHead-grouped list, so the chrome can be
+// quieter — just a bottom hairline rule, a 3px entity strip, the toggle,
+// a priority dot, and the title with chips. Reminder rows get an inline
+// snooze quick-pick row beneath the title, matching the Flutter design.
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, RotateCcw, Clock, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  KindGlyph,
-  formatWhen,
-  statusMeta,
   ENTITY_COLOR_VAR,
   type ItemKind,
   type ItemStatus,
@@ -54,16 +39,16 @@ export interface SheetRowData {
   meta: string | null;
   isToggleable: boolean;
   todayCompleted?: boolean;
-  /** When > 1, this row represents a visual group of identical entries. */
   duplicateCount?: number;
 }
 
 interface Props {
   row: SheetRowData;
   nowMs: number;
+  highlightToday?: boolean;
 }
 
-export function SheetRow({ row, nowMs }: Props) {
+export function SheetRow({ row, nowMs, highlightToday }: Props) {
   const router = useRouter();
   const [done, setDone] = useState(
     row.status === "completed" || row.todayCompleted === true,
@@ -75,7 +60,7 @@ export function SheetRow({ row, nowMs }: Props) {
     try { router.refresh(); } catch { /* noop in tests */ }
   }
 
-  function toggleTaskOrRoutine() {
+  function toggleDone() {
     if (!row.isToggleable) return;
     setDone((v) => !v);
     startTransition(async () => {
@@ -98,14 +83,12 @@ export function SheetRow({ row, nowMs }: Props) {
       else refresh();
     });
   }
-
   function snoozeReminder(minutes: number) {
     startTransition(async () => {
       const r = await snoozeReminderInline(row.id, minutes);
       if (r.ok) refresh();
     });
   }
-
   function undoActivity() {
     setDismissed(true);
     startTransition(async () => {
@@ -115,254 +98,279 @@ export function SheetRow({ row, nowMs }: Props) {
     });
   }
 
-  const when = formatWhen(row.whenIso, nowMs);
-  const effectiveStatus: ItemStatus = done
-    ? "completed"
-    : row.status === "completed"
-      ? "pending"
-      : row.status;
-
-  const stale =
-    (effectiveStatus === "missed" ||
-      (row.kind === "task" &&
-        !done &&
-        !!row.whenIso &&
-        new Date(row.whenIso).getTime() < nowMs)) &&
-    !dismissed;
-
+  const overdue =
+    !done &&
+    row.kind === "task" &&
+    !!row.whenIso &&
+    new Date(row.whenIso).getTime() < nowMs;
+  const missed = row.status === "missed" && !done;
+  const stale = overdue || missed;
   const muted = done || dismissed;
+
+  const due = formatDueShort(row.whenIso, nowMs);
   const entityColor =
     ENTITY_COLOR_VAR[row.kind as keyof typeof ENTITY_COLOR_VAR] ?? "transparent";
+  const isReminder = row.kind === "reminder";
+  const isActivity = row.kind === "activity";
 
   return (
-    <article
+    <div
       className={cn(
-        "group relative flex items-stretch overflow-hidden rounded-2xl border border-[var(--hairline)] bg-[var(--card)]",
-        "transition-[transform,box-shadow,opacity,filter] duration-200",
-        "hover:-translate-y-[1px] hover:border-[var(--hairline-strong)] hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.12)]",
-        stale && "saturate-[0.85]",
-        muted && "opacity-65",
+        "group relative border-b border-[var(--hairline-soft)] last:border-b-0",
+        "transition-colors duration-200",
+        "hover:bg-[var(--tint-hover)]",
+        highlightToday && !muted && "bg-[color-mix(in_srgb,var(--entity-task)_4%,transparent)]",
       )}
     >
-      {/* Entity stripe — 5px ribbon spanning full card height. The whole
-          eye-grab for "what kind is this". */}
-      <div
-        aria-hidden
-        className="shrink-0"
-        style={{ width: 5, background: entityColor }}
-      />
+      <div className="flex items-start gap-3 px-4 py-3.5 sm:px-5">
+        {/* Entity strip */}
+        <span
+          aria-hidden
+          className="mt-1 inline-block shrink-0 rounded-[2px]"
+          style={{
+            width: 3,
+            height: 32,
+            background: muted ? "transparent" : entityColor,
+          }}
+        />
 
-      <div className="flex flex-1 items-start gap-3 px-4 py-3 sm:py-3.5">
-        {/* Leading glyph — inert for non-toggleable kinds. */}
-        <div className="flex shrink-0 items-center pt-[3px]">
-          {row.isToggleable ? (
-            <button
-              type="button"
-              onClick={toggleTaskOrRoutine}
-              disabled={pending}
-              aria-label={done ? "Mark not done" : "Mark done"}
-              className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-full",
-                "transition-colors hover:bg-foreground/8",
-                pending && "opacity-50",
-              )}
-            >
-              {done ? (
-                <span className="font-mono text-[15px] leading-none text-success">
-                  ☑
-                </span>
-              ) : (
-                <KindGlyph kind={row.kind} done={false} />
-              )}
-            </button>
-          ) : (
+        {/* Toggle (radio-circle) — inert for non-toggleable kinds */}
+        {row.isToggleable ? (
+          <button
+            type="button"
+            onClick={toggleDone}
+            disabled={pending}
+            aria-label={done ? "Mark not done" : "Mark done"}
+            className={cn(
+              "mt-[3px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+              done
+                ? "border-success bg-success text-white"
+                : "border-foreground/40 hover:border-foreground/70",
+              pending && "opacity-50",
+            )}
+          >
+            {done && (
+              <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none" aria-hidden>
+                <path
+                  d="M5 10.5l3.5 3.5L15 7"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        ) : (
+          <span
+            aria-hidden
+            className={cn(
+              "mt-[3px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+              isReminder && "border border-[var(--entity-reminder)]/45",
+              isActivity && "border border-[var(--entity-activity)]/45",
+            )}
+          >
             <span
-              aria-hidden
-              className="inline-flex h-6 w-6 items-center justify-center"
-            >
-              <KindGlyph kind={row.kind} done={false} />
-            </span>
-          )}
-        </div>
+              className="inline-block h-1.5 w-1.5 rounded-full"
+              style={{ background: entityColor }}
+            />
+          </span>
+        )}
 
-        {/* Main column — title + mono meta line. */}
+        {/* Main column */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-start gap-3">
             <span
               className={cn(
-                "min-w-0 flex-1 truncate text-[15px] leading-snug tracking-[-0.005em]",
-                muted && "line-through",
+                "min-w-0 flex-1 text-[15px] leading-snug tracking-[-0.005em] text-foreground",
+                muted && "text-muted-foreground line-through",
               )}
-              style={{ fontVariationSettings: "'wght' 560, 'wdth' 96" }}
+              style={{ fontVariationSettings: "'wght' 540, 'wdth' 96" }}
             >
               {row.title}
+              {row.duplicateCount && row.duplicateCount > 1 && (
+                <span
+                  className="ml-2 inline-flex items-center rounded-full bg-foreground/8 px-1.5 py-[1px] font-mono text-[10px] tabular-nums text-muted-foreground align-middle"
+                  title={`${row.duplicateCount} identical entries grouped`}
+                  style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+                >
+                  ×{row.duplicateCount}
+                </span>
+              )}
             </span>
-            {row.duplicateCount && row.duplicateCount > 1 && (
-              <span
-                className="shrink-0 rounded-full bg-foreground/8 px-1.5 py-[1px] font-mono text-[10px] tabular-nums text-muted-foreground"
-                title={`${row.duplicateCount} identical entries grouped`}
-                style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
-              >
-                ×{row.duplicateCount}
-              </span>
-            )}
-            {/* When — Fraunces tabular numerals on the right of the title
-                line. Single typographic moment per card. */}
-            {when && (
+
+            {/* Right-side due label */}
+            {due && (
               <span
                 className={cn(
-                  "hidden shrink-0 font-display text-[12px] tabular-nums sm:inline-block",
-                  stale ? "text-foreground/85" : "text-muted-foreground/85",
+                  "shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums",
+                  stale ? "text-[var(--entity-reminder)]" : "text-muted-foreground/85",
                 )}
-                style={{
-                  fontVariationSettings: "'wght' 560, 'opsz' 24",
-                  letterSpacing: "-0.01em",
-                }}
+                style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
               >
-                {when}
+                {due}
               </span>
             )}
           </div>
 
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/85">
-            <span style={{ color: entityColorTint(entityColor) }}>
-              {row.kind}
-            </span>
-            <Sep />
-            <span className={cn(stale && "text-foreground/85")}>
-              {statusMeta(effectiveStatus)?.label ?? effectiveStatus}
-            </span>
-            {row.meta && (
-              <>
-                <Sep />
-                <span>{row.meta}</span>
-              </>
-            )}
-            {/* On mobile the when is shown here instead (no room on title row). */}
-            {when && (
-              <span className="inline-flex items-center gap-2 sm:hidden">
-                <Sep />
-                <span className={cn("tabular-nums", stale && "text-foreground/85")}>
-                  {when}
+          {/* Chip row — only renders if there's anything to show */}
+          {(row.meta || stale || row.planTitle) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {row.meta && <MetaChip>{row.meta}</MetaChip>}
+              {stale && (
+                <span
+                  className="inline-flex items-center rounded-[3px] px-1.5 py-[1px] font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--entity-reminder)]"
+                  style={{ fontVariationSettings: "'wght' 700, 'wdth' 100" }}
+                >
+                  {missed ? "missed" : "overdue"}
                 </span>
-              </span>
-            )}
-            {row.planTitle && row.planId && (
-              <>
-                <Sep />
+              )}
+              {row.planTitle && row.planId && (
                 <Link
                   href={`/plans/${row.planId}`}
-                  className="ru-link normal-case tracking-normal hover:text-foreground"
+                  className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/85 transition-colors hover:text-foreground"
+                  style={{ fontVariationSettings: "'wght' 540, 'wdth' 96" }}
                 >
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <path
+                      d="M8.5 11.5L4 11.5a3 3 0 010-6h3M11.5 8.5L16 8.5a3 3 0 010 6h-3M7 8.5h6"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                   {row.planTitle}
                 </Link>
-              </>
-            )}
-          </div>
-        </div>
+              )}
+            </div>
+          )}
 
-        {/* Inline actions */}
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-1 self-center",
-            "opacity-100 transition-opacity",
-            "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+          {/* Reminder snooze quick-picks — the killer mobile detail */}
+          {isReminder && !dismissed && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span
+                className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70"
+                style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+              >
+                snooze
+              </span>
+              {SNOOZE_OPTIONS.map((opt) => (
+                <SnoozeChip
+                  key={opt.label}
+                  label={opt.label}
+                  pending={pending}
+                  onClick={() => snoozeReminder(opt.minutes)}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={dismissReminder}
+                disabled={pending}
+                className="ml-1 inline-flex h-6 items-center gap-1 rounded-full bg-foreground px-2.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-background transition-colors hover:bg-foreground/85 disabled:opacity-50"
+                style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+                title="Dismiss"
+              >
+                {pending ? "…" : "done"}
+              </button>
+            </div>
           )}
-        >
-          {row.kind === "reminder" && !dismissed && (
-            <>
-              <ActionChip onClick={() => snoozeReminder(60)} pending={pending} title="Snooze 1h">
-                <Clock className="h-3 w-3" strokeWidth={2.5} />
-                <span className="hidden sm:inline">+1h</span>
-              </ActionChip>
-              <ActionChip primary onClick={dismissReminder} pending={pending} title="Dismiss">
-                <Check className="h-3 w-3" strokeWidth={3} />
-                <span className="hidden sm:inline">done</span>
-              </ActionChip>
-            </>
-          )}
-          {row.kind === "activity" && !dismissed && (
-            <ActionChip onClick={undoActivity} pending={pending} title="Undo log">
-              <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
-              <span className="hidden sm:inline">undo</span>
-            </ActionChip>
-          )}
-          {row.planId && (
-            <Link
-              href={`/plans/${row.planId}`}
-              className="inline-flex h-7 items-center gap-1 rounded-full px-2 text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-foreground/8 hover:text-foreground"
+
+          {/* Activity undo affordance — quiet, visible on hover */}
+          {isActivity && !dismissed && (
+            <button
+              type="button"
+              onClick={undoActivity}
+              disabled={pending}
+              className="mt-1.5 inline-flex h-6 items-center gap-1 rounded-full bg-foreground/8 px-2.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-foreground opacity-0 transition-opacity hover:bg-foreground/15 group-hover:opacity-100 group-focus-within:opacity-100"
               style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
-              aria-label="Open plan"
             >
-              <span className="hidden sm:inline">open</span>
-              <ArrowUpRight className="h-3 w-3" strokeWidth={2.25} />
-            </Link>
-          )}
-          {dismissed && (
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
-              done
-            </span>
+              {pending ? "…" : "undo log"}
+            </button>
           )}
         </div>
       </div>
-    </article>
+    </div>
   );
 }
 
-function Sep() {
-  return <span aria-hidden className="opacity-40">·</span>;
+function MetaChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-[3px] bg-foreground/6 px-1.5 py-[1px] font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+      style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
+    >
+      {children}
+    </span>
+  );
 }
 
-/**
- * Use the entity color directly for the kind label in the meta row so the
- * row's identity reinforces itself in two places: the stripe AND the word.
- * Kept subtle — we don't paint the whole row.
- */
-function entityColorTint(cssVar: string): string {
-  // The label sits on a card background; the entity colors are all
-  // saturated enough to read at full opacity in tiny mono.
-  return cssVar === "transparent" ? "var(--muted-foreground)" : cssVar;
-}
-
-function ActionChip({
-  children,
+function SnoozeChip({
+  label,
   onClick,
   pending,
-  primary,
-  title,
 }: {
-  children: React.ReactNode;
+  label: string;
   onClick: () => void;
   pending?: boolean;
-  primary?: boolean;
-  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={pending}
-      title={title}
-      className={cn(
-        "inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[10.5px] uppercase tracking-[0.14em] transition-colors disabled:opacity-50",
-        primary
-          ? "bg-foreground text-background hover:bg-foreground/85"
-          : "bg-foreground/8 text-foreground hover:bg-foreground/15",
-      )}
+      className="inline-flex h-6 items-center rounded-full bg-foreground/6 px-2 font-mono text-[10px] uppercase tracking-[0.14em] text-foreground transition-colors hover:bg-foreground/12 disabled:opacity-50"
       style={{ fontVariationSettings: "'wght' 580, 'wdth' 100" }}
     >
-      {pending ? "…" : children}
+      {label}
     </button>
   );
 }
 
+const SNOOZE_OPTIONS = [
+  { label: "15m", minutes: 15 },
+  { label: "1h",  minutes: 60 },
+  { label: "3h",  minutes: 180 },
+  { label: "1d",  minutes: 60 * 24 },
+  { label: "1w",  minutes: 60 * 24 * 7 },
+] as const;
+
+/**
+ * "TODAY · 1:30PM" / "TOMORROW · 9AM" / "IN 3D" / "2D AGO" / "MAR 12"
+ * — uppercase mono shape borrowed directly from the Flutter task row.
+ */
+function formatDueShort(iso: string | null, nowMs: number): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date(nowMs);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDue = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayDiff = Math.round(
+    (startOfDue.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const hour12 = d.getHours() % 12 === 0 ? 12 : d.getHours() % 12;
+  const minute = d.getMinutes() === 0 ? "" : `:${d.getMinutes().toString().padStart(2, "0")}`;
+  const ampm = d.getHours() >= 12 ? "PM" : "AM";
+  const time = `${hour12}${minute}${ampm}`;
+  const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0);
+
+  if (dayDiff === 0) return hasTime ? `TODAY · ${time}` : "TODAY";
+  if (dayDiff === 1) return hasTime ? `TOMORROW · ${time}` : "TOMORROW";
+  if (dayDiff === -1) return hasTime ? `YESTERDAY · ${time}` : "YESTERDAY";
+  if (dayDiff > 1 && dayDiff <= 7) return `IN ${dayDiff}D`;
+  if (dayDiff < -1 && dayDiff >= -7) return `${Math.abs(dayDiff)}D AGO`;
+  const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  return `${months[d.getMonth()]} ${d.getDate()}`;
+}
+
 export function SheetRowSkeleton() {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-[var(--hairline)] bg-[var(--card)] px-4 py-3.5">
-      <span className="mt-1 h-4 w-4 animate-pulse rounded-full bg-foreground/5" />
+    <div className="flex items-start gap-3 border-b border-[var(--hairline-soft)] px-4 py-3.5">
+      <span className="mt-1 h-7 w-[3px] animate-pulse rounded-[2px] bg-foreground/8" />
+      <span className="mt-[3px] h-5 w-5 animate-pulse rounded-full border border-foreground/10" />
       <div className="flex-1 space-y-2">
         <span className="block h-3.5 w-3/4 animate-pulse rounded bg-foreground/5" />
-        <span className="block h-2.5 w-1/2 animate-pulse rounded bg-foreground/5" />
+        <span className="block h-2.5 w-1/3 animate-pulse rounded bg-foreground/5" />
       </div>
     </div>
   );
