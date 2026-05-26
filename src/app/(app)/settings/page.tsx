@@ -146,6 +146,39 @@ export default async function SettingsPage() {
         {user && (
           <section>
             <SectionHead
+              eyebrow="connections"
+              sublabel="outside in"
+              count={1}
+              accent="var(--entity-insight)"
+            />
+            <div className="mt-5 flex flex-col gap-3">
+              <Link
+                href="/settings/connections"
+                className="group flex items-center justify-between gap-4 rounded-2xl border border-[var(--hairline)] bg-[var(--card)] px-5 py-4 transition-colors hover:border-[var(--entity-insight)]"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
+                    style={{ fontVariationSettings: "'wght' 600, 'wdth' 100" }}
+                  >
+                    outside in
+                  </span>
+                  <span className="text-[15px] text-foreground">
+                    gmail · calendar · notifications
+                  </span>
+                </div>
+                <ChevronRight
+                  className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {user && (
+          <section>
+            <SectionHead
               eyebrow="profile"
               sublabel="how ru addresses you"
               count={2}

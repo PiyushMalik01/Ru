@@ -4,6 +4,10 @@ import { missedDeadlines } from "./functions/missed-deadlines";
 import { streakCalculator } from "./functions/streak-nudge";
 import { memoryConsolidate } from "./functions/memory-consolidate";
 import { anticipationSweep } from "./functions/anticipation";
+import { calendarSync } from "./functions/calendar-sync";
+import { taskDueSoon } from "./functions/task-due-soon";
+import { dailyDigest } from "./functions/daily-digest";
+import { gmailSync } from "./functions/gmail-sync";
 import {
   pushReminderFire,
   pushStreakMilestone,
@@ -18,6 +22,10 @@ export const functions = [
   streakCalculator,
   memoryConsolidate,
   anticipationSweep,
+  calendarSync,
+  taskDueSoon,
+  dailyDigest,
+  gmailSync,
   pushReminderFire,
   pushStreakMilestone,
   pushRoutineDetected,

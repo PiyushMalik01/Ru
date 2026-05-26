@@ -7,6 +7,55 @@ import type { Database } from "@/types/database";
 
 type Supabase = SupabaseClient<Database>;
 
+export interface CachedCalendarEvent {
+  id: string;
+  googleEventId: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startAt: string;
+  endAt: string | null;
+  allDay: boolean;
+  htmlLink: string | null;
+  status: string | null;
+}
+
+/**
+ * Read cached Google Calendar events for the [from, to] window. Backed by
+ * the `calendar_events` table populated by the calendar-sync cron, so the
+ * /today and /sheet timelines never have to wait on a live Google round
+ * trip.
+ */
+export async function listUpcomingCachedEvents(
+  supabase: Supabase,
+  userId: string,
+  { from, to }: { from: Date; to: Date },
+): Promise<CachedCalendarEvent[]> {
+  const { data, error } = await supabase
+    .from("calendar_events")
+    .select(
+      "id, google_event_id, title, description, location, start_at, end_at, all_day, html_link, status",
+    )
+    .eq("user_id", userId)
+    .gte("start_at", from.toISOString())
+    .lte("start_at", to.toISOString())
+    .order("start_at", { ascending: true });
+  if (error) throw new Error(`listUpcomingCachedEvents: ${error.message}`);
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    googleEventId: r.google_event_id,
+    title: r.title,
+    description: r.description,
+    location: r.location,
+    startAt: r.start_at,
+    endAt: r.end_at,
+    allDay: r.all_day,
+    htmlLink: r.html_link,
+    status: r.status,
+  }));
+}
+
 export type CalendarItemKind = "task" | "routine" | "reminder" | "activity";
 
 export interface CalendarItem {

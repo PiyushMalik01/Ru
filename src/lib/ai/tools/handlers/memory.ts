@@ -38,7 +38,7 @@ export async function noteEpisode(
       source_message_ids: sourceIds,
       entity_refs: entityRefs,
       importance,
-      embedding,
+      embedding: embedding as unknown as string,
     })
     .select()
     .single();

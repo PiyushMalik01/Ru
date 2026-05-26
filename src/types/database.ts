@@ -1,7 +1,17 @@
-// Loosened from the generator's strict recursive union — call sites pass
-// `Record<string, unknown>` everywhere and the runtime accepts it just fine.
-// Postgres JSONB doesn't care about shape; this keeps the TS surface ergonomic.
-export type Json = Record<string, unknown> | unknown[] | string | number | boolean | null;
+// NOTE: hand-widened to accept Record<string, unknown> / unknown[]. The default
+// Supabase-generated Json type is structurally too narrow for the runtime
+// jsonb payloads we pass to update()/insert() across the app — we'd need a
+// cast at every callsite otherwise. The widening only relaxes type checks;
+// Postgres still rejects anything that isn't valid jsonb at runtime.
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+  | { [key: string]: unknown }
+  | unknown[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
@@ -71,6 +81,75 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          all_day: boolean
+          calendar_id: string
+          description: string | null
+          end_at: string | null
+          fetched_at: string
+          google_event_id: string
+          html_link: string | null
+          id: string
+          location: string | null
+          source_task_id: string | null
+          start_at: string
+          status: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          all_day?: boolean
+          calendar_id?: string
+          description?: string | null
+          end_at?: string | null
+          fetched_at?: string
+          google_event_id: string
+          html_link?: string | null
+          id?: string
+          location?: string | null
+          source_task_id?: string | null
+          start_at: string
+          status?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          all_day?: boolean
+          calendar_id?: string
+          description?: string | null
+          end_at?: string | null
+          fetched_at?: string
+          google_event_id?: string
+          html_link?: string | null
+          id?: string
+          location?: string | null
+          source_task_id?: string | null
+          start_at?: string
+          status?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_source_task_id_fkey"
+            columns: ["source_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -172,7 +251,7 @@ export type Database = {
           chat_id: string | null
           content: string
           created_at: string
-          embedding: number[] | null
+          embedding: string | null
           entity_refs: Json
           id: string
           importance: number
@@ -187,7 +266,7 @@ export type Database = {
           chat_id?: string | null
           content: string
           created_at?: string
-          embedding?: number[] | null
+          embedding?: string | null
           entity_refs?: Json
           id?: string
           importance?: number
@@ -202,7 +281,7 @@ export type Database = {
           chat_id?: string | null
           content?: string
           created_at?: string
-          embedding?: number[] | null
+          embedding?: string | null
           entity_refs?: Json
           id?: string
           importance?: number
@@ -225,6 +304,124 @@ export type Database = {
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extracted_items: {
+        Row: {
+          confidence: number
+          created_at: string
+          created_entity_id: string | null
+          created_entity_kind: string | null
+          decided_at: string | null
+          id: string
+          preview_from: string | null
+          preview_snippet: string | null
+          preview_subject: string | null
+          source: string
+          source_ref: string | null
+          status: Database["public"]["Enums"]["extraction_status"]
+          suggested_kind: Database["public"]["Enums"]["extraction_kind"]
+          suggested_payload: Json
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          created_entity_id?: string | null
+          created_entity_kind?: string | null
+          decided_at?: string | null
+          id?: string
+          preview_from?: string | null
+          preview_snippet?: string | null
+          preview_subject?: string | null
+          source: string
+          source_ref?: string | null
+          status?: Database["public"]["Enums"]["extraction_status"]
+          suggested_kind: Database["public"]["Enums"]["extraction_kind"]
+          suggested_payload: Json
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          created_entity_id?: string | null
+          created_entity_kind?: string | null
+          decided_at?: string | null
+          id?: string
+          preview_from?: string | null
+          preview_snippet?: string | null
+          preview_subject?: string | null
+          source?: string
+          source_ref?: string | null
+          status?: Database["public"]["Enums"]["extraction_status"]
+          suggested_kind?: Database["public"]["Enums"]["extraction_kind"]
+          suggested_payload?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extracted_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_integrations: {
+        Row: {
+          access_token_enc: string
+          calendar_sync_enabled: boolean
+          created_at: string
+          email: string | null
+          expires_at: string | null
+          gmail_extraction_enabled: boolean
+          gmail_history_id: string | null
+          last_calendar_sync_at: string | null
+          last_gmail_sync_at: string | null
+          refresh_token_enc: string | null
+          scopes: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_enc: string
+          calendar_sync_enabled?: boolean
+          created_at?: string
+          email?: string | null
+          expires_at?: string | null
+          gmail_extraction_enabled?: boolean
+          gmail_history_id?: string | null
+          last_calendar_sync_at?: string | null
+          last_gmail_sync_at?: string | null
+          refresh_token_enc?: string | null
+          scopes?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_enc?: string
+          calendar_sync_enabled?: boolean
+          created_at?: string
+          email?: string | null
+          expires_at?: string | null
+          gmail_extraction_enabled?: boolean
+          gmail_history_id?: string | null
+          last_calendar_sync_at?: string | null
+          last_gmail_sync_at?: string | null
+          refresh_token_enc?: string | null
+          scopes?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_integrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -360,6 +557,59 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          archived_at: string | null
+          body: string | null
+          channels: Json
+          created_at: string
+          entity_id: string | null
+          entity_kind: string | null
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at: string | null
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          body?: string | null
+          channels?: Json
+          created_at?: string
+          entity_id?: string | null
+          entity_kind?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          body?: string | null
+          channels?: Json
+          created_at?: string
+          entity_id?: string | null
+          entity_kind?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ai_credentials: Json | null
@@ -373,6 +623,14 @@ export type Database = {
           id: string
           memory_enabled: boolean
           memory_onboarded_at: string | null
+          notify_digest_enabled: boolean
+          notify_digest_hour: number
+          notify_email_address: string | null
+          notify_email_enabled: boolean
+          notify_inapp_enabled: boolean
+          notify_push_enabled: boolean
+          notify_quiet_end: number | null
+          notify_quiet_start: number | null
           onboarding_completed: boolean
           preferences: Json
           profile_doc: Json
@@ -393,6 +651,14 @@ export type Database = {
           id: string
           memory_enabled?: boolean
           memory_onboarded_at?: string | null
+          notify_digest_enabled?: boolean
+          notify_digest_hour?: number
+          notify_email_address?: string | null
+          notify_email_enabled?: boolean
+          notify_inapp_enabled?: boolean
+          notify_push_enabled?: boolean
+          notify_quiet_end?: number | null
+          notify_quiet_start?: number | null
           onboarding_completed?: boolean
           preferences?: Json
           profile_doc?: Json
@@ -413,6 +679,14 @@ export type Database = {
           id?: string
           memory_enabled?: boolean
           memory_onboarded_at?: string | null
+          notify_digest_enabled?: boolean
+          notify_digest_hour?: number
+          notify_email_address?: string | null
+          notify_email_enabled?: boolean
+          notify_inapp_enabled?: boolean
+          notify_push_enabled?: boolean
+          notify_quiet_end?: number | null
+          notify_quiet_start?: number | null
           onboarding_completed?: boolean
           preferences?: Json
           profile_doc?: Json
@@ -811,6 +1085,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          calendar_event_id: string | null
           completed_at: string | null
           created_at: string
           description: string | null
@@ -826,6 +1101,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          calendar_event_id?: string | null
           completed_at?: string | null
           created_at?: string
           description?: string | null
@@ -841,6 +1117,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          calendar_event_id?: string | null
           completed_at?: string | null
           created_at?: string
           description?: string | null
@@ -1105,6 +1382,8 @@ export type Database = {
     Enums: {
       ai_provider_type: "chatgpt_oauth" | "openai" | "anthropic" | "gemini"
       anticipation_level_type: "off" | "minimal" | "balanced" | "proactive"
+      extraction_kind: "task" | "reminder" | "event" | "activity" | "note"
+      extraction_status: "pending" | "accepted" | "rejected" | "auto"
       input_method_type: "text" | "voice"
       message_intent:
         | "log"
@@ -1115,6 +1394,19 @@ export type Database = {
         | "modify"
         | "declare"
       message_role: "user" | "assistant"
+      notification_channel: "in_app" | "push" | "email"
+      notification_kind:
+        | "reminder_due"
+        | "task_due_soon"
+        | "task_overdue"
+        | "routine_missed"
+        | "streak_milestone"
+        | "plan_deadline"
+        | "daily_digest"
+        | "suggestion_urgent"
+        | "gmail_extracted"
+        | "calendar_event_soon"
+        | "system"
       nudge_level: "silent" | "gentle" | "active"
       reminder_status: "pending" | "sent" | "dismissed"
       routine_frequency: "daily" | "weekdays" | "weekly" | "custom"
@@ -1264,6 +1556,8 @@ export const Constants = {
     Enums: {
       ai_provider_type: ["chatgpt_oauth", "openai", "anthropic", "gemini"],
       anticipation_level_type: ["off", "minimal", "balanced", "proactive"],
+      extraction_kind: ["task", "reminder", "event", "activity", "note"],
+      extraction_status: ["pending", "accepted", "rejected", "auto"],
       input_method_type: ["text", "voice"],
       message_intent: [
         "log",
@@ -1275,6 +1569,20 @@ export const Constants = {
         "declare",
       ],
       message_role: ["user", "assistant"],
+      notification_channel: ["in_app", "push", "email"],
+      notification_kind: [
+        "reminder_due",
+        "task_due_soon",
+        "task_overdue",
+        "routine_missed",
+        "streak_milestone",
+        "plan_deadline",
+        "daily_digest",
+        "suggestion_urgent",
+        "gmail_extracted",
+        "calendar_event_soon",
+        "system",
+      ],
       nudge_level: ["silent", "gentle", "active"],
       reminder_status: ["pending", "sent", "dismissed"],
       routine_frequency: ["daily", "weekdays", "weekly", "custom"],

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
 import { MemoryFactChip } from "./memory-fact-chip";
+import { BellBadge } from "@/components/inbox/bell-badge";
 
 // Three primary surfaces. Each carries an entity color so the active marker
 // reads as a publication section header, not a generic tab indicator.
@@ -24,7 +25,11 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href;
 }
 
-export function TopNav() {
+interface TopNavProps {
+  inboxUnreadCount?: number;
+}
+
+export function TopNav({ inboxUnreadCount = 0 }: TopNavProps) {
   const pathname = usePathname();
   const activeIndex = tabs.findIndex((t) => isActive(pathname, t.href));
 
@@ -109,6 +114,7 @@ export function TopNav() {
         <div className="flex items-center gap-4">
           <ThemeToggle />
           <MemoryFactChip />
+          <BellBadge initialCount={inboxUnreadCount} />
           <Link
             href="/settings"
             className={cn(

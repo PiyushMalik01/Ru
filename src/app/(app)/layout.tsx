@@ -5,12 +5,36 @@ import { AppDock } from "@/components/app-shell/app-dock";
 import { ConfirmDialog } from "@/components/app-shell/confirm-dialog";
 import { RuGhost } from "@/components/ru-companion/ru-ghost";
 import { SuggestionToast } from "@/components/anticipation/suggestion-toast";
+import { createClient } from "@/lib/supabase/server";
 import { MemoryRolloutBanner } from "./_memory-rollout-banner";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Inbox unread count — feeds the top-bar bell. We do this here (in the
+  // shared layout) so every (app) route gets the live badge without each
+  // page having to opt in. Realtime keeps the client-side number in sync;
+  // this initial value is just the seed.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let inboxUnreadCount = 0;
+  if (user) {
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .is("read_at", null)
+      .is("archived_at", null);
+    inboxUnreadCount = count ?? 0;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
-      <TopNav />
+      <TopNav inboxUnreadCount={inboxUnreadCount} />
       <MemoryRolloutBanner />
       <SubNav />
       <PushPrompt />
