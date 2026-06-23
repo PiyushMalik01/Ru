@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { encrypt } from "@/lib/crypto";
 
@@ -21,6 +22,12 @@ export async function saveBYOK(input: {
 
   if (error) return { error: error.message };
   return { ok: true };
+}
+
+export async function signOut(): Promise<void> {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/");
 }
 
 export async function getCurrentProvider(): Promise<"openai" | "anthropic" | "gemini" | null> {

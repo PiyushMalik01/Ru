@@ -1,6 +1,7 @@
 import { ChatGPTConnection } from "@/components/settings/chatgpt-connection";
 import { BYOKForm } from "@/components/settings/byok-form";
 import { AnticipationControl } from "@/components/settings/anticipation-control";
+import { SignOutButton } from "@/components/settings/sign-out-button";
 import { getCurrentProvider } from "./actions";
 import { createClient } from "@/lib/supabase/server";
 import { getChatGPTStatus } from "@/lib/ai/openai-connection";
@@ -192,6 +193,20 @@ export default async function SettingsPage() {
             <p className="mt-3 text-[13px] italic text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
               edit these from the mobile app for now.
             </p>
+          </section>
+        )}
+
+        {user && (
+          <section>
+            <SectionHead
+              eyebrow="session"
+              sublabel="sign out of this device"
+              count={1}
+              accent="var(--destructive)"
+            />
+            <div className="mt-5">
+              <SignOutButton email={user.email} />
+            </div>
           </section>
         )}
       </div>
