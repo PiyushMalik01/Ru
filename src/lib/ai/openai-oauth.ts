@@ -130,6 +130,13 @@ export async function exchangeCodeForTokens(
   };
 }
 
+export class RefreshTokenRevokedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RefreshTokenRevokedError";
+  }
+}
+
 export async function refreshAccessToken(refreshToken: string): Promise<TokenSet> {
   const res = await fetch(OPENAI_OAUTH.TOKEN_EXCHANGE_ENDPOINT, {
     method: "POST",
@@ -142,6 +149,15 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenSet
   });
   if (!res.ok) {
     const text = await res.text();
+    // OAuth 2.0 says `invalid_grant` means the refresh token is permanently
+    // invalid — revoked, expired, or already rotated. Caller should wipe
+    // credentials. Anything else (5xx, network) is transient and the caller
+    // should keep credentials and retry later.
+    let oauthErr = "";
+    try { oauthErr = JSON.parse(text)?.error ?? ""; } catch { /* not JSON */ }
+    if (res.status === 400 || res.status === 401 || oauthErr === "invalid_grant" || oauthErr === "invalid_request") {
+      throw new RefreshTokenRevokedError(`Refresh token revoked (${res.status}): ${text}`);
+    }
     throw new Error(`Token refresh failed (${res.status}): ${text}`);
   }
   const data = await res.json();

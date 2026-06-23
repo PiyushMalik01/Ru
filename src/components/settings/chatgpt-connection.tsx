@@ -27,18 +27,28 @@ export function ChatGPTConnection({ initialStatus }: { initialStatus: ChatGPTSta
   const [polling, setPolling] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Polling is driven by a self-rescheduling timeout (not setInterval) so
+  // a single in-flight poll is never overlapped by the next tick. The
+  // previous setInterval approach raced: if /poll took >5s (which it does
+  // on the success path because the server is exchanging code for tokens),
+  // the next tick fired in parallel, hit a consumed session, and the
+  // duplicate failure wiped the UI even though the first poll had
+  // successfully connected.
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      cancelledRef.current = true;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
   function stopPolling() {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    cancelledRef.current = true;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
     setPolling(false);
   }
@@ -52,13 +62,16 @@ export function ChatGPTConnection({ initialStatus }: { initialStatus: ChatGPTSta
       const data = (await res.json()) as DeviceCode;
       setDeviceCode(data);
       setPolling(true);
+      cancelledRef.current = false;
 
       // Open the verification page in a new tab; code is already in their clipboard
       window.open(data.verificationUrl, "_blank", "noopener,noreferrer");
 
-      intervalRef.current = setInterval(async () => {
+      const runPoll = async () => {
+        if (cancelledRef.current) return;
         try {
           const r = await fetch("/api/auth/openai/poll", { method: "POST" });
+          if (cancelledRef.current) return;
           if (!r.ok) throw new Error(await r.text());
           const result = (await r.json()) as {
             authorized: boolean;
@@ -75,13 +88,20 @@ export function ChatGPTConnection({ initialStatus }: { initialStatus: ChatGPTSta
               planType: result.planType,
             });
             router.refresh();
+            return;
+          }
+          if (!cancelledRef.current) {
+            timeoutRef.current = setTimeout(runPoll, 5000);
           }
         } catch (e) {
+          if (cancelledRef.current) return;
           stopPolling();
           setDeviceCode(null);
           setError(e instanceof Error ? e.message : "Authorization failed");
         }
-      }, 5000);
+      };
+
+      timeoutRef.current = setTimeout(runPoll, 5000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start ChatGPT connection");
     } finally {

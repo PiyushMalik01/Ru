@@ -13,10 +13,14 @@ export async function POST() {
   if (!dgKey) return new Response("deepgram not configured", { status: 500 });
 
   const projectId = process.env.DEEPGRAM_PROJECT_ID;
-  // Dev fallback: when no project id is set, return the master key directly.
-  // Production should set DEEPGRAM_PROJECT_ID with an admin key so we can mint
-  // short-lived scoped keys instead of exposing the master to the browser.
+  // Returning the master key to the browser hands any signed-in user root
+  // access to the Deepgram account (key management, usage, billing). Only
+  // permit that in a local-dev environment, never in production.
+  const isProd = process.env.NODE_ENV === "production";
   if (!projectId) {
+    if (isProd) {
+      return new Response("deepgram project id not configured", { status: 500 });
+    }
     return NextResponse.json({ key: dgKey, expiresIn: null, scoped: false });
   }
 
@@ -31,12 +35,14 @@ export async function POST() {
     if (error || !result) throw new Error(error?.message ?? "unknown");
     return NextResponse.json({ key: result.key, expiresIn: expiration, scoped: true });
   } catch (e) {
-    // Key likely lacks the `keys:write` scope. Fall back to the master key so voice
-    // still works in dev. Surface the reason so the user knows to upgrade for prod.
     console.warn(
-      "[deepgram] scoped key mint failed, falling back to master key:",
+      "[deepgram] scoped key mint failed:",
       e instanceof Error ? e.message : e
     );
+    if (isProd) {
+      // Fail closed — never hand out the master key in prod even on error.
+      return new Response("could not mint deepgram key", { status: 502 });
+    }
     return NextResponse.json({ key: dgKey, expiresIn: null, scoped: false });
   }
 }

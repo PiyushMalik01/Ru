@@ -11,6 +11,7 @@ import {
   exchangeCodeForTokens,
   refreshAccessToken,
   parseIdToken,
+  RefreshTokenRevokedError,
 } from "./openai-oauth";
 
 export interface ConnectionStatus {
@@ -58,6 +59,10 @@ export async function getChatGPTStatus(
   if (!profile || profile.ai_provider !== "chatgpt_oauth") return { connected: false };
   const creds = profile.ai_credentials as StoredOAuthCredentials | null;
   if (!creds || creds.authMethod !== "oauth-device") return { connected: false };
+  // A connection without an accountId can't actually call the Codex API —
+  // surface as disconnected so the user is prompted to reconnect rather
+  // than seeing "Connected" while every chat fails with 412.
+  if (!creds.accountId) return { connected: false };
   return {
     connected: true,
     authMethod: "oauth-device",
@@ -105,7 +110,20 @@ export async function pollChatGPTAuthorization(
   const preferences = (profile?.preferences as Record<string, unknown> | null) ?? {};
   const session = preferences.openaiDeviceSession as PendingDeviceSession | undefined;
 
-  if (!session) throw new Error("No pending device session — start the connection again.");
+  // Polling client uses setInterval — if a previous tick succeeded and
+  // consumed the session, a duplicate poll lands here with no session
+  // but the user IS now connected. Surface that as authorized=true
+  // instead of throwing, otherwise the client interprets the duplicate
+  // poll as a failed connection and wipes the UI.
+  if (!session) {
+    if (profile?.ai_provider === "chatgpt_oauth") {
+      const creds = profile.ai_credentials as StoredOAuthCredentials | null;
+      if (creds?.authMethod === "oauth-device") {
+        return { authorized: true, email: creds.email, planType: creds.planType };
+      }
+    }
+    throw new Error("No pending device session — start the connection again.");
+  }
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     const { openaiDeviceSession: _drop, ...rest } = preferences;
     await supabase.from("profiles").update({ preferences: rest }).eq("id", userId);
@@ -195,7 +213,24 @@ export async function getValidChatGPTToken(
       .eq("id", userId);
 
     return { accessToken: refreshed.accessToken, accountId: updated.accountId! };
-  } catch {
+  } catch (e) {
+    // Permanently revoked refresh token (most often after a long idle period
+    // or after the user revoked Ru in their OpenAI account): wipe the stored
+    // creds so getChatGPTStatus reports disconnected and the UI prompts a
+    // fresh connect. Without this, the badge says "Connected" forever while
+    // every chat returns 412 — the exact "feels disconnected" symptom users
+    // reported. Transient errors (5xx, network) are left alone so we retry
+    // on the next request.
+    if (e instanceof RefreshTokenRevokedError) {
+      console.warn("chatgpt refresh token revoked, clearing credentials", { userId });
+      await supabase
+        .from("profiles")
+        .update({ ai_provider: null, ai_credentials: null })
+        .eq("id", userId)
+        .eq("ai_provider", "chatgpt_oauth");
+    } else {
+      console.error("chatgpt refresh transient error", e);
+    }
     return null;
   }
 }
