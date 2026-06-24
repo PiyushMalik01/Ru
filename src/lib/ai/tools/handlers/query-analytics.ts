@@ -51,6 +51,7 @@ export async function queryAnalytics(args: Record<string, unknown>, ctx: ToolCon
       .from("tasks")
       .select("status")
       .eq("user_id", ctx.userId)
+      .is("archived_at", null)
       .gte("created_at", cutoff.toISOString());
     const total = data?.length ?? 0;
     const done = data?.filter((t) => t.status === "completed").length ?? 0;

@@ -128,6 +128,7 @@ async function runTaskUrgency(ctx: DetectorContext): Promise<Candidate[]> {
       .select("id, title, due_at, status, priority, updated_at, workspace_id")
       .eq("user_id", ctx.userId)
       .in("status", ["pending", "in_progress"])
+      .is("archived_at", null)
       .not("due_at", "is", null)
       .gte("due_at", now.toISOString())
       .lte("due_at", windowEnd.toISOString());

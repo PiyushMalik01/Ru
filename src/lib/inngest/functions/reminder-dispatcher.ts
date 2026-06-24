@@ -12,6 +12,7 @@ export const reminderDispatcher = inngest.createFunction(
         .select("id, user_id, title")
         .lte("remind_at", new Date().toISOString())
         .eq("status", "pending")
+        .is("archived_at", null)
         .limit(200);
       if (error) throw new Error(error.message);
       return data ?? [];

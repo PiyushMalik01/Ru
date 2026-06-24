@@ -12,6 +12,7 @@ export const missedDeadlines = inngest.createFunction(
         .select("id, user_id, title")
         .lt("due_at", new Date().toISOString())
         .in("status", ["pending", "in_progress"])
+        .is("archived_at", null)
         .limit(500);
       if (error) throw new Error(error.message);
       return data ?? [];

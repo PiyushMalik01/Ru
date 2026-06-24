@@ -768,6 +768,7 @@ export type Database = {
       }
       reminders: {
         Row: {
+          archived_at: string | null
           created_at: string
           id: string
           is_recurring: boolean
@@ -781,6 +782,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           id?: string
           is_recurring?: boolean
@@ -794,6 +796,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           id?: string
           is_recurring?: boolean
@@ -1085,6 +1088,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          archived_at: string | null
           calendar_event_id: string | null
           completed_at: string | null
           created_at: string
@@ -1101,6 +1105,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          archived_at?: string | null
           calendar_event_id?: string | null
           completed_at?: string | null
           created_at?: string
@@ -1117,6 +1122,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          archived_at?: string | null
           calendar_event_id?: string | null
           completed_at?: string | null
           created_at?: string

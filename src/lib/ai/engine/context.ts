@@ -8,6 +8,7 @@ import {
   buildVoiceContextBlock,
   type VoiceContext,
 } from "./voice-persona";
+import { buildNow, bucketAge, describeAge } from "@/lib/time";
 
 export async function assembleContext(opts: {
   supabase: SupabaseClient<Database>;
@@ -47,6 +48,7 @@ export async function assembleContext(opts: {
       .select("title, priority, due_at, status")
       .eq("user_id", userId)
       .in("status", ["pending", "in_progress"])
+      .is("archived_at", null)
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(20),
     loadMemoryProfile(supabase, userId),
@@ -59,15 +61,34 @@ export async function assembleContext(opts: {
   const routines = routinesRes.data ?? [];
   const tasks = tasksRes.data ?? [];
 
+  // Now-context in the user's timezone. Everything below decides "today" /
+  // "stale" / "ancient" against this — never against raw `new Date()` — so the
+  // AI's sense of time tracks the user's, not the server's.
+  const nowCtx = buildNow(profile?.timezone ?? "UTC");
+
+  // Decorate tasks with an age tag so the model doesn't have to do date math
+  // against ISO strings. Drop anything ancient (stale > 90d past due) so it
+  // can't pollute the prompt at all.
+  const liveTasks = tasks
+    .map((t) => ({ ...t, bucket: bucketAge(t.due_at, nowCtx), age: describeAge(t.due_at, nowCtx) }))
+    .filter((t) => t.bucket !== "ancient");
+
   const stateBlock = [
+    `Today: ${nowCtx.todayKey} (${nowCtx.timezone})`,
     summaries.length
       ? `Recent days:\n${[...summaries].reverse().map((s) => `- ${s.date}: ${s.message_summary ?? "(no summary)"}`).join("\n")}`
       : "",
     routines.length
       ? `Active routines:\n${routines.map((r) => `- ${r.title} (${r.frequency}${r.time_of_day ? `, ${r.time_of_day}` : ""})`).join("\n")}`
       : "No active routines yet.",
-    tasks.length
-      ? `Open tasks:\n${tasks.map((t) => `- [${t.priority}] ${t.title}${t.due_at ? ` (due ${t.due_at})` : ""}`).join("\n")}`
+    liveTasks.length
+      ? `Open tasks:\n${liveTasks.map((t) => {
+          if (!t.due_at) return `- [${t.priority}] ${t.title}`;
+          const pastDue = new Date(t.due_at).getTime() < nowCtx.now.getTime();
+          const dormant = pastDue && (t.bucket === "stale" || t.bucket === "recent");
+          const tag = dormant ? " · dormant" : "";
+          return `- [${t.priority}] ${t.title} (due ${t.due_at} · ${t.age}${tag})`;
+        }).join("\n")}`
       : "No open tasks.",
   ]
     .filter(Boolean)

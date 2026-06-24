@@ -129,6 +129,7 @@ export async function fetchSheetTaskStats(
     .from("tasks")
     .select("status, due_at, completed_at")
     .eq("user_id", userId)
+    .is("archived_at", null)
     .or(`completed_at.gte.${sinceIso},status.in.(pending,in_progress,missed)`);
 
   const rows = (data ?? []) as { status: TaskStatus; due_at: string | null; completed_at: string | null }[];
@@ -185,7 +186,8 @@ export async function fetchTasks(
     .from("tasks")
     .select("id, title, description, status, priority, due_at, completed_at, tags, created_at")
     .eq("user_id", userId)
-    .in("status", statuses);
+    .in("status", statuses)
+    .is("archived_at", null);
 
   query = query
     .order("status", { ascending: true })

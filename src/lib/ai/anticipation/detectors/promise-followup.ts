@@ -157,6 +157,7 @@ export const promiseFollowupDetector: Detector = {
           .from("tasks")
           .select("title, created_at, completed_at")
           .eq("user_id", userId)
+          .is("archived_at", null)
           .gte("created_at", sinceIso),
       ]);
 

@@ -19,6 +19,7 @@ export const taskDueSoon = inngest.createFunction(
         .gte("due_at", new Date(now).toISOString())
         .lte("due_at", new Date(now + 60 * 60 * 1000).toISOString())
         .in("status", ["pending", "in_progress"])
+        .is("archived_at", null)
         .limit(500);
       if (error) throw new Error(error.message);
       return data ?? [];

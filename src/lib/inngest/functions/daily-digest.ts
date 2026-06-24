@@ -55,6 +55,7 @@ export const dailyDigest = inngest.createFunction(
             .select("title, due_at")
             .eq("user_id", u.id)
             .in("status", ["pending", "in_progress"])
+            .is("archived_at", null)
             .gte("due_at", startLocalDayIso)
             .lte("due_at", endLocalDayIso)
             .order("due_at"),
@@ -63,6 +64,7 @@ export const dailyDigest = inngest.createFunction(
             .select("title, remind_at")
             .eq("user_id", u.id)
             .eq("status", "pending")
+            .is("archived_at", null)
             .gte("remind_at", startLocalDayIso)
             .lte("remind_at", endLocalDayIso)
             .order("remind_at"),

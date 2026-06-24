@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { buildNow } from "@/lib/time";
 
 type Supabase = SupabaseClient<Database>;
 
@@ -211,7 +212,11 @@ export async function fetchWorkspaceDetail(
 
   const [tasksRes, routinesRes, remindersRes, activitiesRes] = await Promise.all([
     taskIds.length
-      ? supabase.from("tasks").select("id, title, status, priority, due_at").in("id", taskIds)
+      ? supabase
+          .from("tasks")
+          .select("id, title, status, priority, due_at")
+          .in("id", taskIds)
+          .is("archived_at", null)
       : Promise.resolve({ data: [] }),
     routineIds.length
       ? supabase
@@ -224,6 +229,7 @@ export async function fetchWorkspaceDetail(
           .from("reminders")
           .select("id, title, remind_at, is_recurring, status")
           .in("id", reminderIds)
+          .is("archived_at", null)
       : Promise.resolve({ data: [] }),
     activityIds.length
       ? supabase
@@ -268,12 +274,19 @@ export async function fetchTodayBundle(
   supabase: Supabase,
   userId: string
 ): Promise<TodayBundle> {
-  const today = new Date();
-  const startOfToday = new Date(today);
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date(today);
-  endOfToday.setHours(23, 59, 59, 999);
-  const todayKey = today.toISOString().slice(0, 10);
+  // Read timezone first so "today" is the user's day, not the server's.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", userId)
+    .single();
+  const nowCtx = buildNow(profile?.timezone ?? "UTC");
+  const todayKey = nowCtx.todayKey;
+  // Past tasks still due "today or earlier" pull in, but we cap how far back
+  // to avoid surfacing months-old pending work. 30 days back matches the
+  // staleness policy's `taskStaleDays` — anything older is dormant.
+  const floorIso = new Date(nowCtx.now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const endOfTodayIso = new Date(nowCtx.startOfTomorrowUtc.getTime() - 1).toISOString();
 
   const [tasksRes, routinesRes, logsRes, actsRes] = await Promise.all([
     supabase
@@ -281,7 +294,8 @@ export async function fetchTodayBundle(
       .select("id, title, status, priority, due_at")
       .eq("user_id", userId)
       .in("status", ["pending", "in_progress"])
-      .or(`due_at.is.null,due_at.lte.${endOfToday.toISOString()}`)
+      .is("archived_at", null)
+      .or(`due_at.is.null,and(due_at.lte.${endOfTodayIso},due_at.gte.${floorIso})`)
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(20),
     supabase

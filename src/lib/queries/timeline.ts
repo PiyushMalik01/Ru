@@ -42,11 +42,13 @@ export async function fetchTimelinePlans(
     supabase
       .from("tasks")
       .select("workspace_id, due_at, status, updated_at")
-      .in("workspace_id", ids),
+      .in("workspace_id", ids)
+      .is("archived_at", null),
     supabase
       .from("reminders")
       .select("workspace_id, remind_at")
-      .in("workspace_id", ids),
+      .in("workspace_id", ids)
+      .is("archived_at", null),
     supabase
       .from("routines")
       .select("workspace_id, updated_at")
