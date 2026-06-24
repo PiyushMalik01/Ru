@@ -41,19 +41,73 @@ export function inQuietHours(prefs: NotificationPrefs, now = new Date()): boolea
   if (prefs.quietStart == null || prefs.quietEnd == null) return false;
   if (prefs.quietStart === prefs.quietEnd) return false;
 
-  // Compute local hour in user's timezone. Intl handles DST.
-  const hour = parseInt(
-    new Intl.DateTimeFormat("en-US", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: prefs.timezone,
-    }).format(now),
-    10
-  );
-
+  const hour = userHour(prefs.timezone, now);
   if (prefs.quietStart < prefs.quietEnd) {
     return hour >= prefs.quietStart && hour < prefs.quietEnd;
   }
   // Overnight: quiet is start..23 OR 0..end
   return hour >= prefs.quietStart || hour < prefs.quietEnd;
+}
+
+/**
+ * Next instant (UTC) when the quiet window ends for this user. Used to set
+ * `deferred_until` on notifications that arrive during quiet hours so a
+ * flush cron can fire push/email when the user wakes up. Returns null if
+ * quiet hours aren't configured.
+ */
+export function nextQuietEnd(prefs: NotificationPrefs, now = new Date()): Date | null {
+  if (prefs.quietStart == null || prefs.quietEnd == null) return null;
+  if (prefs.quietStart === prefs.quietEnd) return null;
+
+  const tz = prefs.timezone;
+  const todayKey = ymdInTz(tz, now);
+  const quietEndToday = utcInstantOfLocalHour(tz, todayKey, prefs.quietEnd);
+
+  // If we haven't yet reached today's quietEnd, that's the next one.
+  if (quietEndToday.getTime() > now.getTime()) return quietEndToday;
+
+  // Otherwise it's tomorrow's quietEnd (overnight window case, after midnight).
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowKey = ymdInTz(tz, tomorrow);
+  return utcInstantOfLocalHour(tz, tomorrowKey, prefs.quietEnd);
+}
+
+function userHour(tz: string, at: Date): number {
+  return parseInt(
+    new Intl.DateTimeFormat("en-US", { hour: "2-digit", hour12: false, timeZone: tz }).format(at),
+    10,
+  );
+}
+
+function ymdInTz(tz: string, at: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
+/**
+ * Compute the UTC instant corresponding to YYYY-MM-DD at `hour:00` local in
+ * `tz`. Done by probing the offset of midnight-UTC of that date and
+ * subtracting the local offset.
+ */
+function utcInstantOfLocalHour(tz: string, ymd: string, hour: number): Date {
+  const probe = new Date(`${ymd}T00:00:00Z`);
+  const offsetMin = tzOffsetMinutes(tz, probe);
+  const localMidnightUtc = probe.getTime() - offsetMin * 60 * 1000;
+  return new Date(localMidnightUtc + hour * 60 * 60 * 1000);
+}
+
+function tzOffsetMinutes(tz: string, at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "shortOffset",
+  }).formatToParts(at);
+  const tzName = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+  const m = tzName.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  if (!m) return 0;
+  const sign = m[1] === "+" ? 1 : -1;
+  return sign * (parseInt(m[2], 10) * 60 + (m[3] ? parseInt(m[3], 10) : 0));
 }

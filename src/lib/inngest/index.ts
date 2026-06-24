@@ -9,6 +9,7 @@ import { taskDueSoon } from "./functions/task-due-soon";
 import { dailyDigest } from "./functions/daily-digest";
 import { gmailSync } from "./functions/gmail-sync";
 import { archiveStale } from "./functions/archive-stale";
+import { flushDeferred } from "./functions/flush-deferred";
 import {
   pushReminderFire,
   pushStreakMilestone,
@@ -28,6 +29,7 @@ export const functions = [
   dailyDigest,
   gmailSync,
   archiveStale,
+  flushDeferred,
   pushReminderFire,
   pushStreakMilestone,
   pushRoutineDetected,

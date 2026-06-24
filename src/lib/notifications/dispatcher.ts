@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { getPrefs, inQuietHours } from "./prefs";
+import { getPrefs, inQuietHours, nextQuietEnd } from "./prefs";
 import { deliverInApp } from "./channels/inapp";
 import { deliverPush } from "./channels/push";
 import { deliverEmail } from "./channels/email";
@@ -37,25 +37,44 @@ export async function dispatch(input: DispatchInput): Promise<{ notificationId: 
 
   const quiet = !input.bypassQuietHours && inQuietHours(prefs);
 
-  // Decide which channels to fire. forceChannels overrides prefs entirely
-  // but still respects quiet hours unless bypassQuietHours is set.
+  // Three sets of channels:
+  //   targets — what would have fired if we weren't in quiet hours
+  //   liveTargets — what actually fires NOW (in_app + push/email when not quiet)
+  //   deferredTargets — what defers to the end of quiet hours (push/email)
+  // forceChannels overrides prefs entirely but still respects quiet hours.
   const targets = new Set<NotificationChannel>();
   const forced = input.forceChannels;
   if (forced) {
     forced.forEach((c) => targets.add(c));
   } else {
     if (prefs.inappEnabled) targets.add("in_app");
-    if (prefs.pushEnabled && !quiet) targets.add("push");
-    if (prefs.emailEnabled && !quiet && shouldEmail(input.kind)) targets.add("email");
+    if (prefs.pushEnabled) targets.add("push");
+    if (prefs.emailEnabled && shouldEmail(input.kind)) targets.add("email");
+  }
+
+  const liveTargets = new Set<NotificationChannel>();
+  const deferredTargets = new Set<NotificationChannel>();
+  for (const c of targets) {
+    // in_app always fires live — it's silent, just shows up in the inbox.
+    if (c === "in_app") {
+      liveTargets.add(c);
+      continue;
+    }
+    // push/email defer if quiet, fire if not.
+    if (quiet) {
+      deferredTargets.add(c);
+    } else {
+      liveTargets.add(c);
+    }
   }
 
   // Phrase the body in Ru's voice ONCE, before any channel sends. All
   // channels (push, email, in-app) use the same phrased body so the user
-  // sees consistent copy whether they read it in the inbox or in their
-  // inbox-folder. We skip the LLM call entirely for `daily_digest` because
-  // the digest cron composes its own structured body.
+  // sees consistent copy whether they read it in the inbox or get it
+  // pushed later. We skip the LLM call for `daily_digest` because the
+  // digest cron composes its own structured body.
   let phrasedInput = input;
-  if (input.kind !== "daily_digest" && targets.size > 0) {
+  if (input.kind !== "daily_digest" && (liveTargets.size > 0 || deferredTargets.size > 0)) {
     const body = await phraseNotification({
       kind: input.kind,
       title: input.title,
@@ -67,19 +86,28 @@ export async function dispatch(input: DispatchInput): Promise<{ notificationId: 
 
   const fired: NotificationChannel[] = [];
 
-  // Fire push & email in parallel; do in-app last so we record truth.
+  // Fire live push & email in parallel; in-app insert is last so it can
+  // record the channels that fired AND the channels that are deferred.
   const tasks: Promise<unknown>[] = [];
-  if (targets.has("push")) {
+  if (liveTargets.has("push")) {
     tasks.push(deliverPush(phrasedInput).then((ok) => { if (ok) fired.push("push"); }));
   }
-  if (targets.has("email") && prefs.emailAddress) {
+  if (liveTargets.has("email") && prefs.emailAddress) {
     tasks.push(deliverEmail(phrasedInput, prefs.emailAddress).then((ok) => { if (ok) fired.push("email"); }));
   }
   await Promise.all(tasks);
 
   let notificationId: string | null = null;
-  if (targets.has("in_app")) {
-    notificationId = await deliverInApp(phrasedInput, [...fired, "in_app"]);
+  if (liveTargets.has("in_app")) {
+    const deferredUntil = deferredTargets.size > 0 ? nextQuietEnd(prefs) : null;
+    const deferredChannels = deferredTargets.size > 0
+      ? Object.fromEntries([...deferredTargets].map((c) => [c, true]))
+      : null;
+    notificationId = await deliverInApp(phrasedInput, {
+      channelsFired: [...fired, "in_app"],
+      deferredUntil,
+      deferredChannels,
+    });
     fired.push("in_app");
   }
 

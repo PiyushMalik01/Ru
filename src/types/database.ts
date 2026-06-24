@@ -563,6 +563,8 @@ export type Database = {
           body: string | null
           channels: Json
           created_at: string
+          deferred_channels: Json | null
+          deferred_until: string | null
           entity_id: string | null
           entity_kind: string | null
           id: string
@@ -577,6 +579,8 @@ export type Database = {
           body?: string | null
           channels?: Json
           created_at?: string
+          deferred_channels?: Json | null
+          deferred_until?: string | null
           entity_id?: string | null
           entity_kind?: string | null
           id?: string
@@ -591,6 +595,8 @@ export type Database = {
           body?: string | null
           channels?: Json
           created_at?: string
+          deferred_channels?: Json | null
+          deferred_until?: string | null
           entity_id?: string | null
           entity_kind?: string | null
           id?: string
