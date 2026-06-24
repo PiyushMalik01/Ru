@@ -3,6 +3,7 @@ import { getPrefs, inQuietHours } from "./prefs";
 import { deliverInApp } from "./channels/inapp";
 import { deliverPush } from "./channels/push";
 import { deliverEmail } from "./channels/email";
+import { phraseNotification } from "./phraser";
 import type { DispatchInput, NotificationChannel } from "./types";
 
 /**
@@ -48,21 +49,37 @@ export async function dispatch(input: DispatchInput): Promise<{ notificationId: 
     if (prefs.emailEnabled && !quiet && shouldEmail(input.kind)) targets.add("email");
   }
 
+  // Phrase the body in Ru's voice ONCE, before any channel sends. All
+  // channels (push, email, in-app) use the same phrased body so the user
+  // sees consistent copy whether they read it in the inbox or in their
+  // inbox-folder. We skip the LLM call entirely for `daily_digest` because
+  // the digest cron composes its own structured body.
+  let phrasedInput = input;
+  if (input.kind !== "daily_digest" && targets.size > 0) {
+    const body = await phraseNotification({
+      kind: input.kind,
+      title: input.title,
+      fallbackBody: input.body ?? null,
+      data: { entityKind: input.entityKind, entityId: input.entityId },
+    });
+    phrasedInput = { ...input, body };
+  }
+
   const fired: NotificationChannel[] = [];
 
   // Fire push & email in parallel; do in-app last so we record truth.
   const tasks: Promise<unknown>[] = [];
   if (targets.has("push")) {
-    tasks.push(deliverPush(input).then((ok) => { if (ok) fired.push("push"); }));
+    tasks.push(deliverPush(phrasedInput).then((ok) => { if (ok) fired.push("push"); }));
   }
   if (targets.has("email") && prefs.emailAddress) {
-    tasks.push(deliverEmail(input, prefs.emailAddress).then((ok) => { if (ok) fired.push("email"); }));
+    tasks.push(deliverEmail(phrasedInput, prefs.emailAddress).then((ok) => { if (ok) fired.push("email"); }));
   }
   await Promise.all(tasks);
 
   let notificationId: string | null = null;
   if (targets.has("in_app")) {
-    notificationId = await deliverInApp(input, [...fired, "in_app"]);
+    notificationId = await deliverInApp(phrasedInput, [...fired, "in_app"]);
     fired.push("in_app");
   }
 

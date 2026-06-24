@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deliverRawEmail } from "@/lib/notifications";
+import { phraseDigestPreamble } from "@/lib/notifications/phraser";
 
 /**
  * Every hour at :00 — find users whose digest_hour matches the current local
@@ -101,11 +102,28 @@ export const dailyDigest = inngest.createFunction(
         }
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-        const firstName = (u.display_name ?? "").split(" ")[0]?.trim().toLowerCase() ?? null;
+        const firstName = (u.display_name ?? "").split(" ")[0]?.trim().toLowerCase() || null;
         const greeting = firstName ? `good morning, ${firstName}.` : "good morning.";
+        const tz = u.timezone ?? "UTC";
+
+        // Phrase the one-line frame between greeting and sections.
+        const firstEvent = events[0];
+        const firstTask = tasks.find((t) => t.due_at);
+        const preamble = await phraseDigestPreamble({
+          firstName,
+          eventCount: events.length,
+          taskCount: tasks.length,
+          reminderCount: reminders.length,
+          pendingExtracted,
+          firstEvent: firstEvent ? { title: firstEvent.title, timeLabel: fmtTime(firstEvent.start_at, tz) } : null,
+          firstTask: firstTask
+            ? { title: firstTask.title, timeLabel: firstTask.due_at ? fmtTime(firstTask.due_at, tz) : null }
+            : null,
+        });
 
         const html = renderDigestHtml({
           greeting,
+          preamble,
           tasks: tasks
             .filter((t): t is { title: string; due_at: string } => !!t.due_at)
             .map((t) => ({ title: t.title, time: t.due_at })),
@@ -113,11 +131,12 @@ export const dailyDigest = inngest.createFunction(
           events: events.map((e) => ({ title: e.title, time: e.start_at, location: e.location ?? null })),
           pendingExtracted,
           appUrl,
-          tz: u.timezone ?? "UTC",
+          tz,
         });
 
         const text = renderDigestText({
           greeting,
+          preamble,
           tasks: tasks.map((t) => t.title),
           reminders: reminders.map((r) => r.title),
           events: events.map((e) => e.title),
@@ -184,6 +203,7 @@ function escapeHtml(s: string): string {
 interface DigestItem { title: string; time: string; location?: string | null }
 interface DigestParams {
   greeting: string;
+  preamble: string;
   tasks: DigestItem[];
   reminders: DigestItem[];
   events: DigestItem[];
@@ -215,6 +235,7 @@ function renderDigestHtml(p: DigestParams): string {
 <table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" style="max-width:540px;width:100%;background:#fbf7ee;border:1px solid #e5dccb;border-radius:8px;">
 <tr><td style="padding:32px 36px 4px 36px;"><div style="font-family:'SF Mono',Menlo,monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#8a7f6e;">today's shape</div></td></tr>
 <tr><td style="padding:6px 36px 0 36px;"><h1 style="margin:0;font-family:Georgia,serif;font-weight:500;font-size:28px;line-height:1.15;letter-spacing:-0.01em;color:#1a1714;">${escapeHtml(p.greeting)}</h1></td></tr>
+<tr><td style="padding:14px 36px 0 36px;font-size:15px;line-height:1.55;color:#3a342c;">${escapeHtml(p.preamble)}</td></tr>
 ${section("calendar", p.events, "#d89a3f")}
 ${section("tasks", p.tasks, "#3753d3")}
 ${section("reminders", p.reminders, "#e96952")}
@@ -224,8 +245,8 @@ ${extractedBlock}
 </table></td></tr></table></body></html>`;
 }
 
-function renderDigestText(p: { greeting: string; tasks: string[]; reminders: string[]; events: string[]; pendingExtracted: number; appUrl: string }): string {
-  const lines: string[] = [p.greeting, ""];
+function renderDigestText(p: { greeting: string; preamble: string; tasks: string[]; reminders: string[]; events: string[]; pendingExtracted: number; appUrl: string }): string {
+  const lines: string[] = [p.greeting, "", p.preamble, ""];
   if (p.events.length) {
     lines.push(`CALENDAR · ${p.events.length}`);
     p.events.forEach((e) => lines.push(`  · ${e}`));
